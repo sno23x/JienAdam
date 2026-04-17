@@ -1,5 +1,5 @@
 //@version=6
-indicator("Samurai Trading System", shorttitle="Samurai", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+indicator("Samurai Trading", shorttitle="Samurai", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ============================================================================
 // GROUPS
@@ -429,12 +429,17 @@ maBear    = maEnabled > 0 and maBelow == maEnabled   // price below ALL enabled 
 // ============================================================================
 // 11. RSI
 // ============================================================================
-rsiLen = input.int(14, "RSI Length", minval=2, group=gRSI)
-rsiOS  = input.float(30, "Oversold", group=gRSI)
-rsiOB  = input.float(70, "Overbought", group=gRSI)
-rsiVal = ta.rsi(close, rsiLen)
-rsiBull = rsiVal <= rsiOS
-rsiBear = rsiVal >= rsiOB
+// Per "How to" manual: RSI 50 is the primary momentum divider.
+// RSI >50 = Buy advantage, RSI <50 = Sell advantage
+// RSI >70 = market chose UP (bias Buy, not Sell!)
+// RSI <30 = market chose DOWN (bias Sell, not Buy!)
+rsiLen  = input.int(14, "RSI Length", minval=2, group=gRSI)
+rsiMid  = input.float(50, "RSI Midline (momentum divider)", group=gRSI)
+rsiOS   = input.float(30, "Oversold (bias Sell)", group=gRSI)
+rsiOB   = input.float(70, "Overbought (bias Buy)", group=gRSI)
+rsiVal  = ta.rsi(close, rsiLen)
+rsiBull = rsiVal > rsiMid    // Buy advantage when RSI above 50
+rsiBear = rsiVal < rsiMid    // Sell advantage when RSI below 50
 
 // ============================================================================
 // 12. FIB RETRACEMENT (auto from last swing PH/PL)
@@ -525,8 +530,20 @@ momBear = mom < 0
 // ============================================================================
 // 14. CONFLUENCE SIGNAL (score-based)
 // ============================================================================
-minScore = input.int(4, "Min Score (out of 5)", minval=1, maxval=5, group=gConf)
-showScore = input.bool(true, "Show Score Label", group=gConf)
+minScore    = input.int(4, "Min Score (out of 5)", minval=1, maxval=5, group=gConf)
+showScore   = input.bool(true, "Show Score Label", group=gConf)
+useStruct   = input.bool(true, "Require Swing Structure",      group=gConf)
+useSideways = input.bool(true, "Block Sideways (ADX filter)",  group=gConf)
+adxLen      = input.int(14, "ADX Length",   minval=2, group=gConf)
+adxMin      = input.float(20, "Min ADX",    step=1, group=gConf)
+
+// Swing structure filter (บทที่ 2 — ราคาห้ามหลุดสวิงล่าสุด)
+structBull = na(lastPL) or close > lastPL
+structBear = na(lastPH) or close < lastPH
+
+// Sideways filter via ADX (บทที่ 2 — ไซด์เวย์ไม่เทรด)
+[diPlus_, diMinus_, adxVal] = ta.dmi(adxLen, adxLen)
+notSideways = not useSideways or adxVal >= adxMin
 
 // Simple bar-pattern FVG (no box objects — safe for request.security context)
 barBullFVG = low > high[2] and close[1] > high[2]
@@ -538,8 +555,8 @@ zoneBear = barBearFVG or bosDn or boxBreakDn
 buyScore  = (zoneBull ? 1 : 0) + (maBull ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
 sellScore = (zoneBear ? 1 : 0) + (maBear ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
 
-buySignal  = buyScore  >= minScore
-sellSignal = sellScore >= minScore
+buySignal  = buyScore  >= minScore and notSideways and (not useStruct or structBull)
+sellSignal = sellScore >= minScore and notSideways and (not useStruct or structBear)
 
 // edge detection — only on new signal
 newBuy  = buySignal  and not buySignal[1]
@@ -562,11 +579,13 @@ if showScore and newSell
 // ============================================================================
 // 15. ENTRY / TP / SL (multi-TF confluence + Fib-based levels)
 // ============================================================================
-checkMTF = input.bool(true, "Require Multi-TF Confluence", group=gTrade)
-mtfMin   = input.int(3, "Min TFs to align (of 5)", minval=1, maxval=5, group=gTrade)
-showTrade = input.bool(true, "Show Entry/TP/SL", group=gTrade)
-tp1Ratio = input.float(1.0,   "TP1 Fib Extension", step=0.1, group=gTrade)
-tp2Ratio = input.float(1.618, "TP2 Fib Extension", step=0.1, group=gTrade)
+checkMTF   = input.bool(true, "Require Multi-TF Confluence", group=gTrade)
+mtfMin     = input.int(3, "Min TFs to align (of 5)", minval=1, maxval=5, group=gTrade)
+showTrade  = input.bool(true, "Show Entry/TP/SL", group=gTrade)
+tp1Ratio   = input.float(1.0,   "TP1 Fib Extension", step=0.1, group=gTrade)
+tp2Ratio   = input.float(1.618, "TP2 Fib Extension", step=0.1, group=gTrade)
+useFixedSL = input.bool(false, "Use Fixed SL (points)", group=gTrade)
+fixedSL    = input.int(1000, "SL Points (from manual)", minval=1, group=gTrade)
 
 [buy15, sell15]   = request.security(syminfo.tickerid, "15",  [buySignal, sellSignal])
 [buy30, sell30]   = request.security(syminfo.tickerid, "30",  [buySignal, sellSignal])
@@ -604,7 +623,8 @@ if showTrade and (newFinalBuy or newFinalSell) and not na(lastPH) and not na(las
     f_clear_trade()
     entry = close
     rng   = math.abs(lastPH - lastPL)
-    sl    = newFinalBuy ? lastPL : lastPH
+    slFix = fixedSL * syminfo.mintick
+    sl    = useFixedSL ? (newFinalBuy ? entry - slFix : entry + slFix) : (newFinalBuy ? lastPL : lastPH)
     tp1   = newFinalBuy ? entry + rng * tp1Ratio : entry - rng * tp1Ratio
     tp2   = newFinalBuy ? entry + rng * tp2Ratio : entry - rng * tp2Ratio
     eLn  := line.new(bar_index, entry, bar_index + 80, entry, color=color.yellow, width=2, extend=extend.right)
@@ -629,8 +649,9 @@ var bool  tp2Done     = false
 if (newFinalBuy or newFinalSell) and not na(lastPH) and not na(lastPL)
     activeEntry := close
     rng2 = math.abs(lastPH - lastPL)
+    slFix2 = fixedSL * syminfo.mintick
     activeBuy := newFinalBuy
-    activeSL  := newFinalBuy ? lastPL : lastPH
+    activeSL  := useFixedSL ? (newFinalBuy ? close - slFix2 : close + slFix2) : (newFinalBuy ? lastPL : lastPH)
     activeTP1 := newFinalBuy ? close + rng2 * tp1Ratio : close - rng2 * tp1Ratio
     activeTP2 := newFinalBuy ? close + rng2 * tp2Ratio : close - rng2 * tp2Ratio
     tp1Done := false
