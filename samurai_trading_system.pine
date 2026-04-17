@@ -545,10 +545,19 @@ sellSignal = sellScore >= minScore
 newBuy  = buySignal  and not buySignal[1]
 newSell = sellSignal and not sellSignal[1]
 
+f_mark(ok) => ok ? "✓" : "✗"
+f_breakdown(isBuy) =>
+    z = isBuy ? zoneBull : zoneBear
+    m = isBuy ? maBull   : maBear
+    r = isBuy ? rsiBull  : rsiBear
+    fi = atFib
+    mo = isBuy ? momBull : momBear
+    "Z" + f_mark(z) + " M" + f_mark(m) + " R" + f_mark(r) + " F" + f_mark(fi) + " Mo" + f_mark(mo)
+
 if showScore and newBuy
-    label.new(bar_index, low, "BUY " + str.tostring(buyScore) + "/5", color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_up, size=size.small)
+    label.new(bar_index, low, "BUY " + str.tostring(buyScore) + "/5\n" + f_breakdown(true), color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_up, size=size.small)
 if showScore and newSell
-    label.new(bar_index, high, "SELL " + str.tostring(sellScore) + "/5", color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_down, size=size.small)
+    label.new(bar_index, high, "SELL " + str.tostring(sellScore) + "/5\n" + f_breakdown(false), color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_down, size=size.small)
 
 // ============================================================================
 // 15. ENTRY / TP / SL (multi-TF confluence + Fib-based levels)
@@ -602,7 +611,8 @@ if showTrade and (newFinalBuy or newFinalSell) and not na(lastPH) and not na(las
     sLn  := line.new(bar_index, sl,    bar_index + 80, sl,    color=color.red,    width=2, extend=extend.right)
     t1Ln := line.new(bar_index, tp1,   bar_index + 80, tp1,   color=color.green,  width=2, extend=extend.right)
     t2Ln := line.new(bar_index, tp2,   bar_index + 80, tp2,   color=color.lime,   width=2, extend=extend.right)
-    eLb  := label.new(bar_index + 80, entry, "ENTRY "+str.tostring(entry,"#.#####"), color=color.yellow, textcolor=color.black, style=label.style_label_left, size=size.small)
+    brk = f_breakdown(newFinalBuy)
+    eLb  := label.new(bar_index + 80, entry, "ENTRY "+str.tostring(entry,"#.#####")+"\n"+brk, color=color.yellow, textcolor=color.black, style=label.style_label_left, size=size.small)
     sLb  := label.new(bar_index + 80, sl,    "SL "   +str.tostring(sl,   "#.#####"), color=color.red,    textcolor=color.white, style=label.style_label_left, size=size.small)
     t1Lb := label.new(bar_index + 80, tp1,   "TP1 "  +str.tostring(tp1,  "#.#####"), color=color.green,  textcolor=color.white, style=label.style_label_left, size=size.small)
     t2Lb := label.new(bar_index + 80, tp2,   "TP2 "  +str.tostring(tp2,  "#.#####"), color=color.lime,   textcolor=color.black, style=label.style_label_left, size=size.small)
