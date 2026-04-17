@@ -519,16 +519,12 @@ momBear = mom < 0
 minScore = input.int(4, "Min Score (out of 5)", minval=1, maxval=5, group=gConf)
 showScore = input.bool(true, "Show Score Label", group=gConf)
 
-inBullFVG = false
-inBearFVG = false
-for fvg in fvgs
-    if fvg.bull and low <= fvg.top and high >= fvg.bot
-        inBullFVG := true
-    if not fvg.bull and low <= fvg.top and high >= fvg.bot
-        inBearFVG := true
+// Simple bar-pattern FVG (no box objects — safe for request.security context)
+barBullFVG = low > high[2] and close[1] > high[2]
+barBearFVG = high < low[2] and close[1] < low[2]
 
-zoneBull = inBullFVG or bosUp or boxBreakUp
-zoneBear = inBearFVG or bosDn or boxBreakDn
+zoneBull = barBullFVG or bosUp or boxBreakUp
+zoneBear = barBearFVG or bosDn or boxBreakDn
 
 buyScore  = (zoneBull ? 1 : 0) + (maTouched ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
 sellScore = (zoneBear ? 1 : 0) + (maTouched ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
