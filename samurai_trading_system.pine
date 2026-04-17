@@ -1,4 +1,4 @@
-//@version=5
+//@version=6
 indicator("Samurai Trading System", shorttitle="Samurai", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
 
 // ============================================================================
@@ -105,7 +105,7 @@ m15Color = input.color(color.gray,   "15M Color", inline="M15", group=gMTF)
 m15Style = input.string("Dotted",    "15M Style", options=["Solid","Dashed","Dotted"], inline="M15", group=gMTF)
 m15Size  = input.string("tiny",      "15M Size",  options=["tiny","small","normal","large"], inline="M15", group=gMTF)
 
-f_mtf(tf) => [request.security(syminfo.tickerid, tf, high[1], lookahead=barmerge.lookahead_on), request.security(syminfo.tickerid, tf, low[1], lookahead=barmerge.lookahead_on)]
+f_mtf(tf) => [request.security(syminfo.tickerid, tf, high[1]), request.security(syminfo.tickerid, tf, low[1])]
 
 [wH, wL]   = f_mtf("W")
 [dH, dL]   = f_mtf("D")
@@ -160,10 +160,11 @@ goldDn     = input.int(10, "Levels Below", minval=1, group=gGold)
 goldColor  = input.color(color.new(color.yellow, 30), "Color", group=gGold)
 goldStyle  = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"], group=gGold)
 
-var line[] goldLines = array.new_line()
+var line[] goldLines = array.new<line>()
 if barstate.islast and showGold
-    for i = 0 to array.size(goldLines) - 1
-        line.delete(array.get(goldLines, i))
+    if array.size(goldLines) > 0
+        for i = 0 to array.size(goldLines) - 1
+            line.delete(array.get(goldLines, i))
     array.clear(goldLines)
     basis = math.round(close / goldStep) * goldStep
     for i = -goldDn to goldUp
@@ -186,15 +187,16 @@ useE90       = input.bool(true,  ".90", inline="e", group=gSmart)
 smartColor   = input.color(color.new(color.aqua, 40), "Color", group=gSmart)
 smartStyle   = input.string("Dotted", "Style", options=["Solid","Dashed","Dotted"], group=gSmart)
 
-var line[] smartLines = array.new_line()
+var line[] smartLines = array.new<line>()
 if barstate.islast and showSmart
-    for i = 0 to array.size(smartLines) - 1
-        line.delete(array.get(smartLines, i))
+    if array.size(smartLines) > 0
+        for i = 0 to array.size(smartLines) - 1
+            line.delete(array.get(smartLines, i))
     array.clear(smartLines)
     base = math.floor(close / smartStep) * smartStep
     for i = -smartDn to smartUp
         whole = base + i * smartStep
-        endings = array.new_float()
+        endings = array.new<float>()
         if useE00
             array.push(endings, 0.00)
         if useE25
@@ -232,16 +234,17 @@ srTol       = input.float(0.1, "Tolerance (%)", step=0.05, group=gSR)
 srColor     = input.color(color.new(color.white, 30), "Color", group=gSR)
 srStyle     = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"], group=gSR)
 
-var line[] srLines = array.new_line()
+var line[] srLines = array.new<line>()
 if barstate.islast and showSR
-    for i = 0 to array.size(srLines) - 1
-        line.delete(array.get(srLines, i))
+    if array.size(srLines) > 0
+        for i = 0 to array.size(srLines) - 1
+            line.delete(array.get(srLines, i))
     array.clear(srLines)
-    closes = array.new_float()
+    closes = array.new<float>()
     for i = 0 to srLookback - 1
         array.push(closes, close[i])
     tol = close * srTol / 100
-    drawn = array.new_float()
+    drawn = array.new<float>()
     for i = 0 to array.size(closes) - 1
         lv = array.get(closes, i)
         cnt = 0
@@ -341,9 +344,9 @@ showMTFTable = input.bool(true, "Show MTF PA Table", group=gMTFPA)
 tablePos     = input.string("top_right", "Position", options=["top_left","top_right","bottom_left","bottom_right","middle_right"], group=gMTFPA)
 
 paSignal(tf) =>
-    c = request.security(syminfo.tickerid, tf, close, lookahead=barmerge.lookahead_off)
-    o = request.security(syminfo.tickerid, tf, open,  lookahead=barmerge.lookahead_off)
-    e = request.security(syminfo.tickerid, tf, ta.ema(close, 20), lookahead=barmerge.lookahead_off)
+    c = request.security(syminfo.tickerid, tf, close)
+    o = request.security(syminfo.tickerid, tf, open)
+    e = request.security(syminfo.tickerid, tf, ta.ema(close, 20))
     sig = c > o and c > e ? "BUY" : c < o and c < e ? "SELL" : "WAIT"
     sig
 
