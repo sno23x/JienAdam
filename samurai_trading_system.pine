@@ -19,6 +19,7 @@ gFib   = "12. Fib Retracement"
 gMom   = "13. Momentum"
 gConf  = "14. Confluence Signal"
 gTrade = "15. Entry / TP / SL"
+gPA    = "16. Price Action"
 
 // ============================================================================
 // 1. SAMURAI BOX
@@ -552,11 +553,52 @@ barBearFVG = high < low[2] and close[1] < low[2]
 zoneBull = barBullFVG or bosUp or boxBreakUp
 zoneBear = barBearFVG or bosDn or boxBreakDn
 
+// --- Price Action patterns (ใช้ได้เฉพาะในโซน) ---
+usePA     = input.bool(true,  "Require PA in Zone",             group=gPA)
+showPA    = input.bool(true,  "Label PA Patterns",              group=gPA)
+useEngulf = input.bool(true,  "Engulfing",         inline="pa1", group=gPA)
+usePin    = input.bool(true,  "Hammer / Shooting", inline="pa1", group=gPA)
+use3      = input.bool(true,  "3 Soldiers/Crows",  inline="pa2", group=gPA)
+useStar   = input.bool(true,  "Morning/Evening Star", inline="pa2", group=gPA)
+paSLMode  = input.bool(true,  "SL Behind PA Wick (overrides other SL)", group=gPA)
+paSLPad   = input.int(100,    "SL padding (points)", minval=0,   group=gPA)
+
+bodyCur  = math.abs(close - open)
+bodyPrev = math.abs(close[1] - open[1])
+upWick   = high - math.max(open, close)
+dnWick   = math.min(open, close) - low
+isGreen  = close > open
+isRed    = close < open
+isGP     = close[1] > open[1]
+isRP     = close[1] < open[1]
+
+bullEngulf = useEngulf and isRP and isGreen and close > open[1] and open < close[1] and bodyCur > bodyPrev
+bearEngulf = useEngulf and isGP and isRed   and close < open[1] and open > close[1] and bodyCur > bodyPrev
+hammer       = usePin and bodyCur > 0 and dnWick >= 2 * bodyCur and upWick <= bodyCur * 0.4
+shootingStar = usePin and bodyCur > 0 and upWick >= 2 * bodyCur and dnWick <= bodyCur * 0.4
+threeWhite = use3 and close > open and close[1] > open[1] and close[2] > open[2] and close > close[1] and close[1] > close[2]
+threeBlack = use3 and close < open and close[1] < open[1] and close[2] < open[2] and close < close[1] and close[1] < close[2]
+mornStar = useStar and close[2] < open[2] and bodyPrev < math.abs(close[2]-open[2]) * 0.5 and close > (open[2] + close[2]) / 2 and isGreen
+evenStar = useStar and close[2] > open[2] and bodyPrev < math.abs(close[2]-open[2]) * 0.5 and close < (open[2] + close[2]) / 2 and isRed
+
+paBull = bullEngulf or hammer or threeWhite or mornStar
+paBear = bearEngulf or shootingStar or threeBlack or evenStar
+paBullName = bullEngulf ? "BullEng" : hammer ? "Hammer" : threeWhite ? "3WS" : mornStar ? "MornStar" : ""
+paBearName = bearEngulf ? "BearEng" : shootingStar ? "ShootStar" : threeBlack ? "3BC" : evenStar ? "EvenStar" : ""
+
+paBullOK = paBull and zoneBull
+paBearOK = paBear and zoneBear
+
+if showPA and paBullOK
+    label.new(bar_index, low, paBullName, color=color.new(color.green, 40), textcolor=color.white, style=label.style_label_up, size=size.tiny)
+if showPA and paBearOK
+    label.new(bar_index, high, paBearName, color=color.new(color.red, 40), textcolor=color.white, style=label.style_label_down, size=size.tiny)
+
 buyScore  = (zoneBull ? 1 : 0) + (maBull ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
 sellScore = (zoneBear ? 1 : 0) + (maBear ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
 
-buySignal  = buyScore  >= minScore and notSideways and (not useStruct or structBull)
-sellSignal = sellScore >= minScore and notSideways and (not useStruct or structBear)
+buySignal  = buyScore  >= minScore and notSideways and (not useStruct or structBull) and (not usePA or paBullOK)
+sellSignal = sellScore >= minScore and notSideways and (not useStruct or structBear) and (not usePA or paBearOK)
 
 // edge detection — only on new signal
 newBuy  = buySignal  and not buySignal[1]
@@ -624,7 +666,10 @@ if showTrade and (newFinalBuy or newFinalSell) and not na(lastPH) and not na(las
     entry = close
     rng   = math.abs(lastPH - lastPL)
     slFix = fixedSL * syminfo.mintick
-    sl    = useFixedSL ? (newFinalBuy ? entry - slFix : entry + slFix) : (newFinalBuy ? lastPL : lastPH)
+    pad   = paSLPad * syminfo.mintick
+    paLo  = math.min(low, low[1], low[2]) - pad
+    paHi  = math.max(high, high[1], high[2]) + pad
+    sl    = paSLMode ? (newFinalBuy ? paLo : paHi) : useFixedSL ? (newFinalBuy ? entry - slFix : entry + slFix) : (newFinalBuy ? lastPL : lastPH)
     tp1   = newFinalBuy ? entry + rng * tp1Ratio : entry - rng * tp1Ratio
     tp2   = newFinalBuy ? entry + rng * tp2Ratio : entry - rng * tp2Ratio
     eLn  := line.new(bar_index, entry, bar_index + 80, entry, color=color.yellow, width=2, extend=extend.right)
@@ -648,10 +693,13 @@ var bool  tp2Done     = false
 
 if (newFinalBuy or newFinalSell) and not na(lastPH) and not na(lastPL)
     activeEntry := close
-    rng2 = math.abs(lastPH - lastPL)
+    rng2   = math.abs(lastPH - lastPL)
     slFix2 = fixedSL * syminfo.mintick
+    pad2   = paSLPad * syminfo.mintick
+    paLo2  = math.min(low, low[1], low[2]) - pad2
+    paHi2  = math.max(high, high[1], high[2]) + pad2
     activeBuy := newFinalBuy
-    activeSL  := useFixedSL ? (newFinalBuy ? close - slFix2 : close + slFix2) : (newFinalBuy ? lastPL : lastPH)
+    activeSL  := paSLMode ? (newFinalBuy ? paLo2 : paHi2) : useFixedSL ? (newFinalBuy ? close - slFix2 : close + slFix2) : (newFinalBuy ? lastPL : lastPH)
     activeTP1 := newFinalBuy ? close + rng2 * tp1Ratio : close - rng2 * tp1Ratio
     activeTP2 := newFinalBuy ? close + rng2 * tp2Ratio : close - rng2 * tp2Ratio
     tp1Done := false
@@ -688,6 +736,7 @@ alBoxUp     = input.bool(true, "Alert: Box breakout UP",    group=gAlert)
 alBoxDn     = input.bool(true, "Alert: Box breakout DOWN",  group=gAlert)
 alSmart     = input.bool(true, "Alert: Smart Price hit",    group=gAlert)
 alMA        = input.bool(true, "Alert: MA Ribbon touch",    group=gAlert)
+alPA        = input.bool(true, "Alert: PA in Zone",         group=gAlert)
 alBuy       = input.bool(true, "Alert: Confluence BUY",     group=gAlert)
 alSell      = input.bool(true, "Alert: Confluence SELL",    group=gAlert)
 alTP1       = input.bool(true, "Alert: TP1 hit",            group=gAlert)
@@ -700,6 +749,7 @@ alertcondition(alBoxUp   and boxBreakUp,title="Samurai Box UP",    message="Samu
 alertcondition(alBoxDn   and boxBreakDn,title="Samurai Box DOWN",  message="Samurai: Price broke below Samurai Box")
 alertcondition(alSmart   and smartHit,  title="Smart Price Level", message="Samurai: Price at Smart Level")
 alertcondition(alMA      and maTouched, title="MA Ribbon Touch",   message="Samurai: Price touched MA Ribbon")
+alertcondition(alPA      and (paBullOK or paBearOK), title="PA in Zone", message="Samurai: Price Action pattern detected in zone")
 alertcondition(alBuy     and newFinalBuy,  title="Confluence BUY",    message="Samurai: Multi-TF BUY confluence")
 alertcondition(alSell    and newFinalSell, title="Confluence SELL",   message="Samurai: Multi-TF SELL confluence")
 alertcondition(alTP1     and tp1Hit,    title="TP1 Hit",           message="Samurai: TP1 reached")
