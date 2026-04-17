@@ -550,6 +550,16 @@ useATR    = input.bool(true,  "Skip quiet markets (ATR filter)", group=gFilt)
 atrLen    = input.int(14,     "ATR Length",                      group=gFilt)
 atrMinPct = input.float(0.1,  "Min ATR as % of price", step=0.01, group=gFilt)
 
+// --- 4H sweet-spot preset (auto-tighten filters on 4H TF) ---
+use4HPreset  = input.bool(true,  "4H Preset (auto-tune filters on 4H)",  group=gFilt)
+p4hATR       = input.float(0.15, "  4H min ATR %",  step=0.01, group=gFilt)
+p4hADX       = input.float(22,   "  4H min ADX",    step=1,    group=gFilt)
+p4hMTFmin    = input.int(3,      "  4H min MTF align (of 5)",  minval=1, maxval=5, group=gFilt)
+p4hTP1       = input.float(1.3,  "  4H TP1 ratio (RR)",  step=0.1, group=gFilt)
+p4hTP2       = input.float(1.5,  "  4H TP2 ratio (RR)",  step=0.1, group=gFilt)
+is4H         = timeframe.period == "240"
+on4H         = use4HPreset and is4H
+
 // --- Session filter (เน้น Signal ทุกช่วงตลาดเปิด) ---
 useSess  = input.bool(true,  "Only trade during active sessions",         group=gFilt)
 sessA    = input.session("0700-1500", "Asia Session (exchange tz)",      group=gFilt)
@@ -565,12 +575,14 @@ structBear = na(lastPH) or close < lastPH
 
 // Sideways filter via ADX (บทที่ 2 — ไซด์เวย์ไม่เทรด)
 [diPlus_, diMinus_, adxVal] = ta.dmi(adxLen, adxLen)
-notSideways = not useSideways or adxVal >= adxMin
+adxMinEff   = on4H ? math.max(adxMin, p4hADX) : adxMin
+notSideways = not useSideways or adxVal >= adxMinEff
 
-// ATR volatility gate
-atrVal    = ta.atr(atrLen)
-atrPct    = close > 0 ? atrVal / close * 100 : 0.0
-volOK     = not useATR or atrPct >= atrMinPct
+// ATR volatility gate (4H preset tightens the threshold automatically)
+atrVal       = ta.atr(atrLen)
+atrPct       = close > 0 ? atrVal / close * 100 : 0.0
+atrMinPctEff = on4H ? math.max(atrMinPct, p4hATR) : atrMinPct
+volOK        = not useATR or atrPct >= atrMinPctEff
 
 // Session gate — allow if any enabled session is active
 inSessA   = not na(time(timeframe.period, sessA))
@@ -647,7 +659,8 @@ f_breakdown(isBuy) =>
     r = isBuy ? rsiBull  : rsiBear
     fi = atFib
     mo = isBuy ? momBull : momBear
-    "Z" + f_mark(z) + " M" + f_mark(m) + " R" + f_mark(r) + " F" + f_mark(fi) + " Mo" + f_mark(mo)
+    tag = on4H ? " [4H]" : ""
+    "Z" + f_mark(z) + " M" + f_mark(m) + " R" + f_mark(r) + " F" + f_mark(fi) + " Mo" + f_mark(mo) + tag
 
 if showScore and newBuy
     label.new(bar_index, low, "BUY " + str.tostring(buyScore) + "/5\n" + f_breakdown(true), color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_up, size=size.small)
@@ -674,8 +687,9 @@ fixedSL    = input.int(1000, "SL Points (from manual)", minval=1, group=gTrade)
 buyTFs  = (buy15 ? 1 : 0)  + (buy30 ? 1 : 0)  + (buy60 ? 1 : 0)  + (buy240 ? 1 : 0)  + (buyD ? 1 : 0)
 sellTFs = (sell15 ? 1 : 0) + (sell30 ? 1 : 0) + (sell60 ? 1 : 0) + (sell240 ? 1 : 0) + (sellD ? 1 : 0)
 
-finalBuy  = checkMTF ? buyTFs  >= mtfMin : buySignal
-finalSell = checkMTF ? sellTFs >= mtfMin : sellSignal
+mtfMinEff = on4H ? math.max(mtfMin, p4hMTFmin) : mtfMin
+finalBuy  = checkMTF ? buyTFs  >= mtfMinEff : buySignal
+finalSell = checkMTF ? sellTFs >= mtfMinEff : sellSignal
 newFinalBuy  = finalBuy  and not finalBuy[1]
 newFinalSell = finalSell and not finalSell[1]
 
@@ -697,6 +711,9 @@ tp1Hit = false
 tp2Hit = false
 slHit  = false
 
+tp1Eff = on4H ? p4hTP1 : tp1Ratio
+tp2Eff = on4H ? p4hTP2 : tp2Ratio
+
 if showTrade and (newFinalBuy or newFinalSell) and not na(lastPH) and not na(lastPL)
     f_clear_trade()
     entry = close
@@ -706,8 +723,8 @@ if showTrade and (newFinalBuy or newFinalSell) and not na(lastPH) and not na(las
     paLo  = math.min(low, low[1], low[2]) - pad
     paHi  = math.max(high, high[1], high[2]) + pad
     sl    = paSLMode ? (newFinalBuy ? paLo : paHi) : useFixedSL ? (newFinalBuy ? entry - slFix : entry + slFix) : (newFinalBuy ? lastPL : lastPH)
-    tp1   = newFinalBuy ? entry + rng * tp1Ratio : entry - rng * tp1Ratio
-    tp2   = newFinalBuy ? entry + rng * tp2Ratio : entry - rng * tp2Ratio
+    tp1   = newFinalBuy ? entry + rng * tp1Eff : entry - rng * tp1Eff
+    tp2   = newFinalBuy ? entry + rng * tp2Eff : entry - rng * tp2Eff
     eLn  := line.new(bar_index, entry, bar_index + 80, entry, color=color.yellow, width=2, extend=extend.right)
     sLn  := line.new(bar_index, sl,    bar_index + 80, sl,    color=color.red,    width=2, extend=extend.right)
     t1Ln := line.new(bar_index, tp1,   bar_index + 80, tp1,   color=color.green,  width=2, extend=extend.right)
@@ -736,8 +753,8 @@ if (newFinalBuy or newFinalSell) and not na(lastPH) and not na(lastPL)
     paHi2  = math.max(high, high[1], high[2]) + pad2
     activeBuy := newFinalBuy
     activeSL  := paSLMode ? (newFinalBuy ? paLo2 : paHi2) : useFixedSL ? (newFinalBuy ? close - slFix2 : close + slFix2) : (newFinalBuy ? lastPL : lastPH)
-    activeTP1 := newFinalBuy ? close + rng2 * tp1Ratio : close - rng2 * tp1Ratio
-    activeTP2 := newFinalBuy ? close + rng2 * tp2Ratio : close - rng2 * tp2Ratio
+    activeTP1 := newFinalBuy ? close + rng2 * tp1Eff : close - rng2 * tp1Eff
+    activeTP2 := newFinalBuy ? close + rng2 * tp2Eff : close - rng2 * tp2Eff
     tp1Done := false
     tp2Done := false
 
