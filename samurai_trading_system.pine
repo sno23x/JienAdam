@@ -162,8 +162,9 @@ goldStyle  = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"],
 
 var line[] goldLines = array.new_line()
 if barstate.islast and showGold
-    for i = 0 to array.size(goldLines) - 1
-        line.delete(array.get(goldLines, i))
+    if array.size(goldLines) > 0
+        for i = 0 to array.size(goldLines) - 1
+            line.delete(array.get(goldLines, i))
     array.clear(goldLines)
     basis = math.round(close / goldStep) * goldStep
     for i = -goldDn to goldUp
@@ -188,8 +189,9 @@ smartStyle   = input.string("Dotted", "Style", options=["Solid","Dashed","Dotted
 
 var line[] smartLines = array.new_line()
 if barstate.islast and showSmart
-    for i = 0 to array.size(smartLines) - 1
-        line.delete(array.get(smartLines, i))
+    if array.size(smartLines) > 0
+        for i = 0 to array.size(smartLines) - 1
+            line.delete(array.get(smartLines, i))
     array.clear(smartLines)
     base = math.floor(close / smartStep) * smartStep
     for i = -smartDn to smartUp
@@ -234,8 +236,9 @@ srStyle     = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"]
 
 var line[] srLines = array.new_line()
 if barstate.islast and showSR
-    for i = 0 to array.size(srLines) - 1
-        line.delete(array.get(srLines, i))
+    if array.size(srLines) > 0
+        for i = 0 to array.size(srLines) - 1
+            line.delete(array.get(srLines, i))
     array.clear(srLines)
     closes = array.new_float()
     for i = 0 to srLookback - 1
