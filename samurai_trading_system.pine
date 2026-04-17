@@ -417,6 +417,15 @@ f_touch(m) => not na(m) and low <= m * (1 + maTol/100) and high >= m * (1 - maTo
 maTouched = (ma1On and f_touch(ma1)) or (ma2On and f_touch(ma2)) or (ma3On and f_touch(ma3)) or (ma4On and f_touch(ma4))
 maHit = ma1On and f_touch(ma1) ? "MA1" : ma2On and f_touch(ma2) ? "MA2" : ma3On and f_touch(ma3) ? "MA3" : ma4On and f_touch(ma4) ? "MA4" : ""
 
+// Directional check: price above/below enabled MAs
+f_above(m, on) => on and not na(m) and close > m
+f_below(m, on) => on and not na(m) and close < m
+maEnabled = (ma1On ? 1 : 0) + (ma2On ? 1 : 0) + (ma3On ? 1 : 0) + (ma4On ? 1 : 0)
+maAbove   = (f_above(ma1, ma1On) ? 1 : 0) + (f_above(ma2, ma2On) ? 1 : 0) + (f_above(ma3, ma3On) ? 1 : 0) + (f_above(ma4, ma4On) ? 1 : 0)
+maBelow   = (f_below(ma1, ma1On) ? 1 : 0) + (f_below(ma2, ma2On) ? 1 : 0) + (f_below(ma3, ma3On) ? 1 : 0) + (f_below(ma4, ma4On) ? 1 : 0)
+maBull    = maEnabled > 0 and maAbove == maEnabled   // price above ALL enabled MAs
+maBear    = maEnabled > 0 and maBelow == maEnabled   // price below ALL enabled MAs
+
 // ============================================================================
 // 11. RSI
 // ============================================================================
@@ -526,8 +535,8 @@ barBearFVG = high < low[2] and close[1] < low[2]
 zoneBull = barBullFVG or bosUp or boxBreakUp
 zoneBear = barBearFVG or bosDn or boxBreakDn
 
-buyScore  = (zoneBull ? 1 : 0) + (maTouched ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
-sellScore = (zoneBear ? 1 : 0) + (maTouched ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
+buyScore  = (zoneBull ? 1 : 0) + (maBull ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
+sellScore = (zoneBear ? 1 : 0) + (maBear ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
 
 buySignal  = buyScore  >= minScore
 sellSignal = sellScore >= minScore
