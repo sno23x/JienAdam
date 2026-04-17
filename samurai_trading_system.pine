@@ -252,10 +252,11 @@ if barstate.islast and showSR
             if math.abs(array.get(closes, j) - lv) <= tol
                 cnt += 1
         dup = false
-        for k = 0 to array.size(drawn) - 1
-            if math.abs(array.get(drawn, k) - lv) <= tol
-                dup := true
-                break
+        if array.size(drawn) > 0
+            for k = 0 to array.size(drawn) - 1
+                if math.abs(array.get(drawn, k) - lv) <= tol
+                    dup := true
+                    break
         if cnt >= srMinTouch and not dup
             array.push(drawn, lv)
             ln = line.new(bar_index - srLookback, lv, bar_index, lv, color=srColor, style=styleOpt(srStyle), extend=extend.right)
