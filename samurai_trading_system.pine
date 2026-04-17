@@ -20,6 +20,7 @@ gMom   = "13. Momentum"
 gConf  = "14. Confluence Signal"
 gTrade = "15. Entry / TP / SL"
 gPA    = "16. Price Action"
+gFilt  = "17. Market Filters (ATR / Session)"
 
 // ============================================================================
 // 1. SAMURAI BOX
@@ -434,13 +435,19 @@ maBear    = maEnabled > 0 and maBelow == maEnabled   // price below ALL enabled 
 // RSI >50 = Buy advantage, RSI <50 = Sell advantage
 // RSI >70 = market chose UP (bias Buy, not Sell!)
 // RSI <30 = market chose DOWN (bias Sell, not Buy!)
-rsiLen  = input.int(14, "RSI Length", minval=2, group=gRSI)
-rsiMid  = input.float(50, "RSI Midline (momentum divider)", group=gRSI)
-rsiOS   = input.float(30, "Oversold (bias Sell)", group=gRSI)
-rsiOB   = input.float(70, "Overbought (bias Buy)", group=gRSI)
-rsiVal  = ta.rsi(close, rsiLen)
-rsiBull = rsiVal > rsiMid    // Buy advantage when RSI above 50
-rsiBear = rsiVal < rsiMid    // Sell advantage when RSI below 50
+rsiLen      = input.int(14, "RSI Length", minval=2, group=gRSI)
+rsiMid      = input.float(50, "RSI Midline (momentum divider)", group=gRSI)
+rsiOS       = input.float(30, "Oversold (bias Sell)", group=gRSI)
+rsiOB       = input.float(70, "Overbought (bias Buy)", group=gRSI)
+rsiBigOnly  = input.bool(true, "Apply RSI score only on big TFs (>= threshold)", group=gRSI)
+rsiBigMin   = input.int(60, "Big TF threshold (minutes)", minval=1, group=gRSI)
+rsiVal      = ta.rsi(close, rsiLen)
+tfMinutes   = timeframe.in_seconds(timeframe.period) / 60
+isBigTF     = tfMinutes >= rsiBigMin
+rsiActive   = not rsiBigOnly or isBigTF
+// When RSI is inactive (small TF) both sides get +1 so it doesn't tilt either way
+rsiBull     = (not rsiActive) or rsiVal > rsiMid
+rsiBear     = (not rsiActive) or rsiVal < rsiMid
 
 // ============================================================================
 // 12. FIB RETRACEMENT (auto from last swing PH/PL)
@@ -538,6 +545,20 @@ useSideways = input.bool(true, "Block Sideways (ADX filter)",  group=gConf)
 adxLen      = input.int(14, "ADX Length",   minval=2, group=gConf)
 adxMin      = input.float(20, "Min ADX",    step=1, group=gConf)
 
+// --- ATR volatility filter (กรองตลาดเงียบ) ---
+useATR    = input.bool(true,  "Skip quiet markets (ATR filter)", group=gFilt)
+atrLen    = input.int(14,     "ATR Length",                      group=gFilt)
+atrMinPct = input.float(0.1,  "Min ATR as % of price", step=0.01, group=gFilt)
+
+// --- Session filter (เน้น Signal ทุกช่วงตลาดเปิด) ---
+useSess  = input.bool(true,  "Only trade during active sessions",         group=gFilt)
+sessA    = input.session("0700-1500", "Asia Session (exchange tz)",      group=gFilt)
+sessL    = input.session("1400-2300", "London Session (exchange tz)",    group=gFilt)
+sessN    = input.session("2000-0500", "NY Session (exchange tz)",        group=gFilt)
+showVolWin = input.bool(true, "Highlight 8:00-10:00 high-vol window",    group=gFilt)
+volWin   = input.session("0800-1000", "High-Vol Window (Asian open)",    group=gFilt)
+volCol   = input.color(color.new(color.yellow, 90), "Vol window shade",  group=gFilt)
+
 // Swing structure filter (บทที่ 2 — ราคาห้ามหลุดสวิงล่าสุด)
 structBull = na(lastPL) or close > lastPL
 structBear = na(lastPH) or close < lastPH
@@ -545,6 +566,21 @@ structBear = na(lastPH) or close < lastPH
 // Sideways filter via ADX (บทที่ 2 — ไซด์เวย์ไม่เทรด)
 [diPlus_, diMinus_, adxVal] = ta.dmi(adxLen, adxLen)
 notSideways = not useSideways or adxVal >= adxMin
+
+// ATR volatility gate
+atrVal    = ta.atr(atrLen)
+atrPct    = close > 0 ? atrVal / close * 100 : 0.0
+volOK     = not useATR or atrPct >= atrMinPct
+
+// Session gate — allow if any enabled session is active
+inSessA   = not na(time(timeframe.period, sessA))
+inSessL   = not na(time(timeframe.period, sessL))
+inSessN   = not na(time(timeframe.period, sessN))
+sessOK    = not useSess or inSessA or inSessL or inSessN
+
+// High-vol window highlight (Asian open — often strong gold flow)
+inVolWin  = not na(time(timeframe.period, volWin))
+bgcolor(showVolWin and inVolWin ? volCol : na, title="8am Vol Window")
 
 // Simple bar-pattern FVG (no box objects — safe for request.security context)
 barBullFVG = low > high[2] and close[1] > high[2]
@@ -597,8 +633,8 @@ if showPA and paBearOK
 buyScore  = (zoneBull ? 1 : 0) + (maBull ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
 sellScore = (zoneBear ? 1 : 0) + (maBear ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
 
-buySignal  = buyScore  >= minScore and notSideways and (not useStruct or structBull) and (not usePA or paBullOK)
-sellSignal = sellScore >= minScore and notSideways and (not useStruct or structBear) and (not usePA or paBearOK)
+buySignal  = buyScore  >= minScore and notSideways and volOK and sessOK and (not useStruct or structBull) and (not usePA or paBullOK)
+sellSignal = sellScore >= minScore and notSideways and volOK and sessOK and (not useStruct or structBear) and (not usePA or paBearOK)
 
 // edge detection — only on new signal
 newBuy  = buySignal  and not buySignal[1]
