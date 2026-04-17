@@ -13,6 +13,12 @@ gBOS   = "6. Break of Structure"
 gFVG   = "7. Fair Value Gap"
 gMTFPA = "8. Samurai Multi-Timeframe PA"
 gAlert = "9. Alerts"
+gMA    = "10. MA Ribbon"
+gRSI   = "11. RSI"
+gFib   = "12. Fib Retracement"
+gMom   = "13. Momentum"
+gConf  = "14. Confluence Signal"
+gTrade = "15. Entry / TP / SL"
 
 // ============================================================================
 // 1. SAMURAI BOX
@@ -162,9 +168,8 @@ goldStyle  = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"],
 
 var line[] goldLines = array.new<line>()
 if barstate.islast and showGold
-    if array.size(goldLines) > 0
-        for i = 0 to array.size(goldLines) - 1
-            line.delete(array.get(goldLines, i))
+    for ln in goldLines
+        line.delete(ln)
     array.clear(goldLines)
     basis = math.round(close / goldStep) * goldStep
     for i = -goldDn to goldUp
@@ -189,9 +194,8 @@ smartStyle   = input.string("Dotted", "Style", options=["Solid","Dashed","Dotted
 
 var line[] smartLines = array.new<line>()
 if barstate.islast and showSmart
-    if array.size(smartLines) > 0
-        for i = 0 to array.size(smartLines) - 1
-            line.delete(array.get(smartLines, i))
+    for ln in smartLines
+        line.delete(ln)
     array.clear(smartLines)
     base = math.floor(close / smartStep) * smartStep
     for i = -smartDn to smartUp
@@ -236,24 +240,22 @@ srStyle     = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"]
 
 var line[] srLines = array.new<line>()
 if barstate.islast and showSR
-    if array.size(srLines) > 0
-        for i = 0 to array.size(srLines) - 1
-            line.delete(array.get(srLines, i))
+    for ln in srLines
+        line.delete(ln)
     array.clear(srLines)
     closes = array.new<float>()
     for i = 0 to srLookback - 1
         array.push(closes, close[i])
     tol = close * srTol / 100
     drawn = array.new<float>()
-    for i = 0 to array.size(closes) - 1
-        lv = array.get(closes, i)
+    for lv in closes
         cnt = 0
-        for j = 0 to array.size(closes) - 1
-            if math.abs(array.get(closes, j) - lv) <= tol
+        for cv in closes
+            if math.abs(cv - lv) <= tol
                 cnt += 1
         dup = false
-        for k = 0 to array.size(drawn) - 1
-            if math.abs(array.get(drawn, k) - lv) <= tol
+        for dv in drawn
+            if math.abs(dv - lv) <= tol
                 dup := true
                 break
         if cnt >= srMinTouch and not dup
@@ -369,6 +371,294 @@ if barstate.islast and showMTFTable
         table.cell(paTable, 1, i + 1, s, text_color=color.white, bgcolor=col)
 
 // ============================================================================
+// 10. MA RIBBON
+// ============================================================================
+showMA = input.bool(true, "Show MA Ribbon", group=gMA)
+maTol  = input.float(0.1, "Touch Tolerance %", step=0.05, group=gMA)
+
+f_ma(t, src, len) => t == "EMA" ? ta.ema(src, len) : t == "SMA" ? ta.sma(src, len) : t == "WMA" ? ta.wma(src, len) : ta.rma(src, len)
+f_src(s) => s == "Open" ? open : s == "High" ? high : s == "Low" ? low : s == "Close" ? close : s == "(H+L)/2" ? hl2 : s == "(H+L+C)/3" ? hlc3 : s == "(O+H+L+C)/4" ? ohlc4 : (high+low+close+close)/4
+
+ma1On   = input.bool(true, "MA 1", inline="MA1", group=gMA)
+ma1Type = input.string("EMA", "", options=["EMA","SMA","WMA","RMA"], inline="MA1", group=gMA)
+ma1Src  = input.string("Close", "", options=["Open","High","Low","Close","(H+L)/2","(H+L+C)/3","(O+H+L+C)/4","(H+L+C+C)/4"], inline="MA1", group=gMA)
+ma1Len  = input.int(100, "", inline="MA1", group=gMA)
+ma1Col  = input.color(color.blue, "", inline="MA1", group=gMA)
+
+ma2On   = input.bool(true, "MA 2", inline="MA2", group=gMA)
+ma2Type = input.string("EMA", "", options=["EMA","SMA","WMA","RMA"], inline="MA2", group=gMA)
+ma2Src  = input.string("Close", "", options=["Open","High","Low","Close","(H+L)/2","(H+L+C)/3","(O+H+L+C)/4","(H+L+C+C)/4"], inline="MA2", group=gMA)
+ma2Len  = input.int(133, "", inline="MA2", group=gMA)
+ma2Col  = input.color(color.green, "", inline="MA2", group=gMA)
+
+ma3On   = input.bool(true, "MA 3", inline="MA3", group=gMA)
+ma3Type = input.string("EMA", "", options=["EMA","SMA","WMA","RMA"], inline="MA3", group=gMA)
+ma3Src  = input.string("Close", "", options=["Open","High","Low","Close","(H+L)/2","(H+L+C)/3","(O+H+L+C)/4","(H+L+C+C)/4"], inline="MA3", group=gMA)
+ma3Len  = input.int(233, "", inline="MA3", group=gMA)
+ma3Col  = input.color(color.purple, "", inline="MA3", group=gMA)
+
+ma4On   = input.bool(true, "MA 4", inline="MA4", group=gMA)
+ma4Type = input.string("WMA", "", options=["EMA","SMA","WMA","RMA"], inline="MA4", group=gMA)
+ma4Src  = input.string("(H+L+C+C)/4", "", options=["Open","High","Low","Close","(H+L)/2","(H+L+C)/3","(O+H+L+C)/4","(H+L+C+C)/4"], inline="MA4", group=gMA)
+ma4Len  = input.int(720, "", inline="MA4", group=gMA)
+ma4Col  = input.color(color.red, "", inline="MA4", group=gMA)
+
+ma1 = f_ma(ma1Type, f_src(ma1Src), ma1Len)
+ma2 = f_ma(ma2Type, f_src(ma2Src), ma2Len)
+ma3 = f_ma(ma3Type, f_src(ma3Src), ma3Len)
+ma4 = f_ma(ma4Type, f_src(ma4Src), ma4Len)
+
+plot(showMA and ma1On ? ma1 : na, color=ma1Col, title="MA 1", linewidth=2)
+plot(showMA and ma2On ? ma2 : na, color=ma2Col, title="MA 2", linewidth=2)
+plot(showMA and ma3On ? ma3 : na, color=ma3Col, title="MA 3", linewidth=2)
+plot(showMA and ma4On ? ma4 : na, color=ma4Col, title="MA 4", linewidth=2)
+
+f_touch(m) => not na(m) and low <= m * (1 + maTol/100) and high >= m * (1 - maTol/100)
+maTouched = (ma1On and f_touch(ma1)) or (ma2On and f_touch(ma2)) or (ma3On and f_touch(ma3)) or (ma4On and f_touch(ma4))
+maHit = ma1On and f_touch(ma1) ? "MA1" : ma2On and f_touch(ma2) ? "MA2" : ma3On and f_touch(ma3) ? "MA3" : ma4On and f_touch(ma4) ? "MA4" : ""
+
+// Directional check: price above/below enabled MAs
+f_above(m, on) => on and not na(m) and close > m
+f_below(m, on) => on and not na(m) and close < m
+maEnabled = (ma1On ? 1 : 0) + (ma2On ? 1 : 0) + (ma3On ? 1 : 0) + (ma4On ? 1 : 0)
+maAbove   = (f_above(ma1, ma1On) ? 1 : 0) + (f_above(ma2, ma2On) ? 1 : 0) + (f_above(ma3, ma3On) ? 1 : 0) + (f_above(ma4, ma4On) ? 1 : 0)
+maBelow   = (f_below(ma1, ma1On) ? 1 : 0) + (f_below(ma2, ma2On) ? 1 : 0) + (f_below(ma3, ma3On) ? 1 : 0) + (f_below(ma4, ma4On) ? 1 : 0)
+maBull    = maEnabled > 0 and maAbove == maEnabled   // price above ALL enabled MAs
+maBear    = maEnabled > 0 and maBelow == maEnabled   // price below ALL enabled MAs
+
+// ============================================================================
+// 11. RSI
+// ============================================================================
+rsiLen = input.int(14, "RSI Length", minval=2, group=gRSI)
+rsiOS  = input.float(30, "Oversold", group=gRSI)
+rsiOB  = input.float(70, "Overbought", group=gRSI)
+rsiVal = ta.rsi(close, rsiLen)
+rsiBull = rsiVal <= rsiOS
+rsiBear = rsiVal >= rsiOB
+
+// ============================================================================
+// 12. FIB RETRACEMENT (auto from last swing PH/PL)
+// ============================================================================
+showFib = input.bool(true, "Show Fib Retracement", group=gFib)
+fibTol  = input.float(0.1, "Fib Touch Tolerance %", step=0.05, group=gFib)
+fibCol  = input.color(color.new(color.orange, 40), "Line Color", group=gFib)
+
+useFib0    = input.bool(true, "0",      inline="fa", group=gFib)
+useFib382  = input.bool(true, "0.382",  inline="fa", group=gFib)
+useFib5    = input.bool(true, "0.5",    inline="fa", group=gFib)
+useFib618  = input.bool(true, "0.618",  inline="fb", group=gFib)
+useFib705  = input.bool(true, "0.705",  inline="fb", group=gFib)
+useFib786  = input.bool(true, "0.786",  inline="fb", group=gFib)
+useFib886  = input.bool(true, "0.886",  inline="fc", group=gFib)
+useFib1    = input.bool(true, "1",      inline="fc", group=gFib)
+useFibN27  = input.bool(true, "-0.27",  inline="fd", group=gFib)
+useFibN618 = input.bool(true, "-0.618", inline="fd", group=gFib)
+useFib1272 = input.bool(true, "1.272",  inline="fd", group=gFib)
+
+f_fib_price(hi, lo, r, up) => up ? hi - (hi - lo) * r : lo + (hi - lo) * r
+
+f_active_fibs() =>
+    a = array.new<float>()
+    if useFib0
+        array.push(a, 0.0)
+    if useFib382
+        array.push(a, 0.382)
+    if useFib5
+        array.push(a, 0.5)
+    if useFib618
+        array.push(a, 0.618)
+    if useFib705
+        array.push(a, 0.705)
+    if useFib786
+        array.push(a, 0.786)
+    if useFib886
+        array.push(a, 0.886)
+    if useFib1
+        array.push(a, 1.0)
+    if useFibN27
+        array.push(a, -0.27)
+    if useFibN618
+        array.push(a, -0.618)
+    if useFib1272
+        array.push(a, 1.272)
+    a
+
+var line[] fibLines = array.new<line>()
+
+if barstate.islast and showFib and not na(lastPH) and not na(lastPL)
+    for ln in fibLines
+        line.delete(ln)
+    array.clear(fibLines)
+    hi_ = math.max(lastPH, lastPL)
+    lo_ = math.min(lastPH, lastPL)
+    up_ = lastPHbar > lastPLbar
+    startBar = math.min(lastPHbar, lastPLbar)
+    fibs = f_active_fibs()
+    for r in fibs
+        lv = f_fib_price(hi_, lo_, r, up_)
+        ln = line.new(startBar, lv, bar_index, lv, color=fibCol, style=line.style_dotted, extend=extend.right)
+        array.push(fibLines, ln)
+
+f_at_fib() =>
+    touched = false
+    if not na(lastPH) and not na(lastPL)
+        hi_ = math.max(lastPH, lastPL)
+        lo_ = math.min(lastPH, lastPL)
+        up_ = lastPHbar > lastPLbar
+        fibs = f_active_fibs()
+        for r in fibs
+            lv = f_fib_price(hi_, lo_, r, up_)
+            if close > 0 and math.abs(close - lv) / close * 100 <= fibTol
+                touched := true
+    touched
+
+atFib = f_at_fib()
+
+// ============================================================================
+// 13. MOMENTUM (simple)
+// ============================================================================
+momLen = input.int(10, "Momentum Lookback", minval=1, group=gMom)
+mom    = close - close[momLen]
+momBull = mom > 0
+momBear = mom < 0
+
+// ============================================================================
+// 14. CONFLUENCE SIGNAL (score-based)
+// ============================================================================
+minScore = input.int(4, "Min Score (out of 5)", minval=1, maxval=5, group=gConf)
+showScore = input.bool(true, "Show Score Label", group=gConf)
+
+// Simple bar-pattern FVG (no box objects — safe for request.security context)
+barBullFVG = low > high[2] and close[1] > high[2]
+barBearFVG = high < low[2] and close[1] < low[2]
+
+zoneBull = barBullFVG or bosUp or boxBreakUp
+zoneBear = barBearFVG or bosDn or boxBreakDn
+
+buyScore  = (zoneBull ? 1 : 0) + (maBull ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
+sellScore = (zoneBear ? 1 : 0) + (maBear ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
+
+buySignal  = buyScore  >= minScore
+sellSignal = sellScore >= minScore
+
+// edge detection — only on new signal
+newBuy  = buySignal  and not buySignal[1]
+newSell = sellSignal and not sellSignal[1]
+
+f_mark(ok) => ok ? "✓" : "✗"
+f_breakdown(isBuy) =>
+    z = isBuy ? zoneBull : zoneBear
+    m = isBuy ? maBull   : maBear
+    r = isBuy ? rsiBull  : rsiBear
+    fi = atFib
+    mo = isBuy ? momBull : momBear
+    "Z" + f_mark(z) + " M" + f_mark(m) + " R" + f_mark(r) + " F" + f_mark(fi) + " Mo" + f_mark(mo)
+
+if showScore and newBuy
+    label.new(bar_index, low, "BUY " + str.tostring(buyScore) + "/5\n" + f_breakdown(true), color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_up, size=size.small)
+if showScore and newSell
+    label.new(bar_index, high, "SELL " + str.tostring(sellScore) + "/5\n" + f_breakdown(false), color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_down, size=size.small)
+
+// ============================================================================
+// 15. ENTRY / TP / SL (multi-TF confluence + Fib-based levels)
+// ============================================================================
+checkMTF = input.bool(true, "Require Multi-TF Confluence", group=gTrade)
+mtfMin   = input.int(3, "Min TFs to align (of 5)", minval=1, maxval=5, group=gTrade)
+showTrade = input.bool(true, "Show Entry/TP/SL", group=gTrade)
+tp1Ratio = input.float(1.0,   "TP1 Fib Extension", step=0.1, group=gTrade)
+tp2Ratio = input.float(1.618, "TP2 Fib Extension", step=0.1, group=gTrade)
+
+[buy15, sell15]   = request.security(syminfo.tickerid, "15",  [buySignal, sellSignal])
+[buy30, sell30]   = request.security(syminfo.tickerid, "30",  [buySignal, sellSignal])
+[buy60, sell60]   = request.security(syminfo.tickerid, "60",  [buySignal, sellSignal])
+[buy240, sell240] = request.security(syminfo.tickerid, "240", [buySignal, sellSignal])
+[buyD, sellD]     = request.security(syminfo.tickerid, "D",   [buySignal, sellSignal])
+
+buyTFs  = (buy15 ? 1 : 0)  + (buy30 ? 1 : 0)  + (buy60 ? 1 : 0)  + (buy240 ? 1 : 0)  + (buyD ? 1 : 0)
+sellTFs = (sell15 ? 1 : 0) + (sell30 ? 1 : 0) + (sell60 ? 1 : 0) + (sell240 ? 1 : 0) + (sellD ? 1 : 0)
+
+finalBuy  = checkMTF ? buyTFs  >= mtfMin : buySignal
+finalSell = checkMTF ? sellTFs >= mtfMin : sellSignal
+newFinalBuy  = finalBuy  and not finalBuy[1]
+newFinalSell = finalSell and not finalSell[1]
+
+var line  eLn = na, var line  sLn = na, var line  t1Ln = na, var line  t2Ln = na
+var label eLb = na, var label sLb = na, var label t1Lb = na, var label t2Lb = na
+
+f_clear_trade() =>
+    if not na(eLn)
+        line.delete(eLn)
+        line.delete(sLn)
+        line.delete(t1Ln)
+        line.delete(t2Ln)
+        label.delete(eLb)
+        label.delete(sLb)
+        label.delete(t1Lb)
+        label.delete(t2Lb)
+
+tp1Hit = false
+tp2Hit = false
+slHit  = false
+
+if showTrade and (newFinalBuy or newFinalSell) and not na(lastPH) and not na(lastPL)
+    f_clear_trade()
+    entry = close
+    rng   = math.abs(lastPH - lastPL)
+    sl    = newFinalBuy ? lastPL : lastPH
+    tp1   = newFinalBuy ? entry + rng * tp1Ratio : entry - rng * tp1Ratio
+    tp2   = newFinalBuy ? entry + rng * tp2Ratio : entry - rng * tp2Ratio
+    eLn  := line.new(bar_index, entry, bar_index + 80, entry, color=color.yellow, width=2, extend=extend.right)
+    sLn  := line.new(bar_index, sl,    bar_index + 80, sl,    color=color.red,    width=2, extend=extend.right)
+    t1Ln := line.new(bar_index, tp1,   bar_index + 80, tp1,   color=color.green,  width=2, extend=extend.right)
+    t2Ln := line.new(bar_index, tp2,   bar_index + 80, tp2,   color=color.lime,   width=2, extend=extend.right)
+    brk = f_breakdown(newFinalBuy)
+    eLb  := label.new(bar_index + 80, entry, "ENTRY "+str.tostring(entry,"#.#####")+"\n"+brk, color=color.yellow, textcolor=color.black, style=label.style_label_left, size=size.small)
+    sLb  := label.new(bar_index + 80, sl,    "SL "   +str.tostring(sl,   "#.#####"), color=color.red,    textcolor=color.white, style=label.style_label_left, size=size.small)
+    t1Lb := label.new(bar_index + 80, tp1,   "TP1 "  +str.tostring(tp1,  "#.#####"), color=color.green,  textcolor=color.white, style=label.style_label_left, size=size.small)
+    t2Lb := label.new(bar_index + 80, tp2,   "TP2 "  +str.tostring(tp2,  "#.#####"), color=color.lime,   textcolor=color.black, style=label.style_label_left, size=size.small)
+
+// track active trade levels for hit alerts
+var float activeEntry = na
+var float activeSL    = na
+var float activeTP1   = na
+var float activeTP2   = na
+var bool  activeBuy   = false
+var bool  tp1Done     = false
+var bool  tp2Done     = false
+
+if (newFinalBuy or newFinalSell) and not na(lastPH) and not na(lastPL)
+    activeEntry := close
+    rng2 = math.abs(lastPH - lastPL)
+    activeBuy := newFinalBuy
+    activeSL  := newFinalBuy ? lastPL : lastPH
+    activeTP1 := newFinalBuy ? close + rng2 * tp1Ratio : close - rng2 * tp1Ratio
+    activeTP2 := newFinalBuy ? close + rng2 * tp2Ratio : close - rng2 * tp2Ratio
+    tp1Done := false
+    tp2Done := false
+
+if not na(activeEntry)
+    if activeBuy
+        if not tp1Done and high >= activeTP1
+            tp1Hit := true
+            tp1Done := true
+        if not tp2Done and high >= activeTP2
+            tp2Hit := true
+            tp2Done := true
+        if low <= activeSL
+            slHit := true
+            activeEntry := na
+    else
+        if not tp1Done and low <= activeTP1
+            tp1Hit := true
+            tp1Done := true
+        if not tp2Done and low <= activeTP2
+            tp2Hit := true
+            tp2Done := true
+        if high >= activeSL
+            slHit := true
+            activeEntry := na
+
+// ============================================================================
 // 9. ALERTS
 // ============================================================================
 alFVG50     = input.bool(true, "Alert: FVG 50% test",       group=gAlert)
@@ -376,9 +666,21 @@ alFVGFill   = input.bool(true, "Alert: FVG filled",         group=gAlert)
 alBoxUp     = input.bool(true, "Alert: Box breakout UP",    group=gAlert)
 alBoxDn     = input.bool(true, "Alert: Box breakout DOWN",  group=gAlert)
 alSmart     = input.bool(true, "Alert: Smart Price hit",    group=gAlert)
+alMA        = input.bool(true, "Alert: MA Ribbon touch",    group=gAlert)
+alBuy       = input.bool(true, "Alert: Confluence BUY",     group=gAlert)
+alSell      = input.bool(true, "Alert: Confluence SELL",    group=gAlert)
+alTP1       = input.bool(true, "Alert: TP1 hit",            group=gAlert)
+alTP2       = input.bool(true, "Alert: TP2 hit",            group=gAlert)
+alSL        = input.bool(true, "Alert: SL hit",             group=gAlert)
 
 alertcondition(alFVG50   and fvg50,     title="FVG 50% Test",      message="Samurai: Price testing FVG 50%")
 alertcondition(alFVGFill and fvgFilled, title="FVG Filled",        message="Samurai: FVG has been filled")
 alertcondition(alBoxUp   and boxBreakUp,title="Samurai Box UP",    message="Samurai: Price broke above Samurai Box")
 alertcondition(alBoxDn   and boxBreakDn,title="Samurai Box DOWN",  message="Samurai: Price broke below Samurai Box")
 alertcondition(alSmart   and smartHit,  title="Smart Price Level", message="Samurai: Price at Smart Level")
+alertcondition(alMA      and maTouched, title="MA Ribbon Touch",   message="Samurai: Price touched MA Ribbon")
+alertcondition(alBuy     and newFinalBuy,  title="Confluence BUY",    message="Samurai: Multi-TF BUY confluence")
+alertcondition(alSell    and newFinalSell, title="Confluence SELL",   message="Samurai: Multi-TF SELL confluence")
+alertcondition(alTP1     and tp1Hit,    title="TP1 Hit",           message="Samurai: TP1 reached")
+alertcondition(alTP2     and tp2Hit,    title="TP2 Hit",           message="Samurai: TP2 reached")
+alertcondition(alSL      and slHit,     title="SL Hit",            message="Samurai: Stop Loss hit")
