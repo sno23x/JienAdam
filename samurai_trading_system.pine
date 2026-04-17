@@ -1,0 +1,381 @@
+//@version=5
+indicator("Samurai Trading System", shorttitle="Samurai", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+
+// ============================================================================
+// GROUPS
+// ============================================================================
+gBox   = "1. Samurai Box"
+gMTF   = "2. Multi-Timeframe High/Low"
+gGold  = "3. Gold Psychological Levels"
+gSmart = "4. Smart Price Levels"
+gSR    = "5. Smart Support & Resistance"
+gBOS   = "6. Break of Structure"
+gFVG   = "7. Fair Value Gap"
+gMTFPA = "8. Samurai Multi-Timeframe PA"
+gAlert = "9. Alerts"
+
+// ============================================================================
+// 1. SAMURAI BOX
+// ============================================================================
+showBox        = input.bool(true,  "Show Samurai Box",                  group=gBox)
+showHistBox    = input.bool(false, "Show Historical Boxes",             group=gBox)
+showExt        = input.bool(true,  "Show Extension Zones",              group=gBox)
+boxSession     = input.session("0000-0800",  "Box Session (exchange tz)", group=gBox)
+extMult1       = input.float(1.0,  "Extension 1 (x range)", step=0.1, group=gBox)
+extMult2       = input.float(2.0,  "Extension 2 (x range)", step=0.1, group=gBox)
+colBoxUpper    = input.color(color.new(color.red,    80), "Upper Color",    group=gBox)
+colBoxLower    = input.color(color.new(color.green,  80), "Lower Color",    group=gBox)
+colBoxInner    = input.color(color.new(color.yellow, 85), "Internal Color", group=gBox)
+colExtUp       = input.color(color.new(color.red,    90), "Upper Ext Color",group=gBox)
+colExtDn       = input.color(color.new(color.green,  90), "Lower Ext Color",group=gBox)
+
+var float boxHi = na
+var float boxLo = na
+var int   boxStart = na
+var box   curBoxHi = na
+var box   curBoxLo = na
+var box   curExtUp1 = na
+var box   curExtDn1 = na
+var box   curExtUp2 = na
+var box   curExtDn2 = na
+
+inSess = not na(time(timeframe.period, boxSession))
+sessStart = inSess and not inSess[1]
+sessEnd   = not inSess and inSess[1]
+
+if sessStart
+    boxHi := high
+    boxLo := low
+    boxStart := bar_index
+else if inSess
+    boxHi := math.max(boxHi, high)
+    boxLo := math.min(boxLo, low)
+
+if sessEnd and showBox
+    mid = (boxHi + boxLo) / 2
+    rng = boxHi - boxLo
+    if not showHistBox and not na(curBoxHi)
+        box.delete(curBoxHi)
+        box.delete(curBoxLo)
+        box.delete(curExtUp1)
+        box.delete(curExtDn1)
+        box.delete(curExtUp2)
+        box.delete(curExtDn2)
+    curBoxHi := box.new(boxStart, boxHi, bar_index, mid,   bgcolor=colBoxUpper, border_color=colBoxUpper, extend=extend.right)
+    curBoxLo := box.new(boxStart, mid,   bar_index, boxLo, bgcolor=colBoxLower, border_color=colBoxLower, extend=extend.right)
+    if showExt
+        curExtUp1 := box.new(boxStart, boxHi + rng * extMult1, bar_index, boxHi,              bgcolor=colExtUp, border_color=colExtUp, extend=extend.right)
+        curExtDn1 := box.new(boxStart, boxLo,              bar_index, boxLo - rng * extMult1, bgcolor=colExtDn, border_color=colExtDn, extend=extend.right)
+        curExtUp2 := box.new(boxStart, boxHi + rng * extMult2, bar_index, boxHi + rng * extMult1, bgcolor=colExtUp, border_color=colExtUp, extend=extend.right)
+        curExtDn2 := box.new(boxStart, boxLo - rng * extMult1, bar_index, boxLo - rng * extMult2, bgcolor=colExtDn, border_color=colExtDn, extend=extend.right)
+
+// Box breakout alerts
+boxBreakUp = showBox and not na(boxHi) and ta.crossover(close, boxHi) and not inSess
+boxBreakDn = showBox and not na(boxLo) and ta.crossunder(close, boxLo) and not inSess
+
+// ============================================================================
+// 2. MULTI-TIMEFRAME HIGH / LOW
+// ============================================================================
+showW   = input.bool(true,  "Show Weekly H/L",  group=gMTF)
+showD   = input.bool(true,  "Show Daily H/L",   group=gMTF)
+showH1  = input.bool(true,  "Show 1H H/L",      group=gMTF)
+show30  = input.bool(false, "Show 30M H/L",     group=gMTF)
+show15  = input.bool(false, "Show 15M H/L",     group=gMTF)
+
+styleOpt(s) => s == "Solid" ? line.style_solid : s == "Dashed" ? line.style_dashed : line.style_dotted
+sizeOpt(s)  => s == "tiny" ? size.tiny : s == "small" ? size.small : s == "normal" ? size.normal : size.large
+
+wColor  = input.color(color.orange, "W Color",  inline="W", group=gMTF)
+wStyle  = input.string("Solid", "W Style", options=["Solid","Dashed","Dotted"], inline="W", group=gMTF)
+wSize   = input.string("small", "W Size",  options=["tiny","small","normal","large"], inline="W", group=gMTF)
+
+dColor  = input.color(color.blue,   "D Color",  inline="D", group=gMTF)
+dStyle  = input.string("Solid", "D Style", options=["Solid","Dashed","Dotted"], inline="D", group=gMTF)
+dSize   = input.string("small", "D Size",  options=["tiny","small","normal","large"], inline="D", group=gMTF)
+
+h1Color = input.color(color.teal,   "1H Color", inline="H1", group=gMTF)
+h1Style = input.string("Dashed",    "1H Style", options=["Solid","Dashed","Dotted"], inline="H1", group=gMTF)
+h1Size  = input.string("tiny",      "1H Size",  options=["tiny","small","normal","large"], inline="H1", group=gMTF)
+
+m30Color = input.color(color.purple, "30M Color", inline="M30", group=gMTF)
+m30Style = input.string("Dashed",    "30M Style", options=["Solid","Dashed","Dotted"], inline="M30", group=gMTF)
+m30Size  = input.string("tiny",      "30M Size",  options=["tiny","small","normal","large"], inline="M30", group=gMTF)
+
+m15Color = input.color(color.gray,   "15M Color", inline="M15", group=gMTF)
+m15Style = input.string("Dotted",    "15M Style", options=["Solid","Dashed","Dotted"], inline="M15", group=gMTF)
+m15Size  = input.string("tiny",      "15M Size",  options=["tiny","small","normal","large"], inline="M15", group=gMTF)
+
+f_mtf(tf) => [request.security(syminfo.tickerid, tf, high[1], lookahead=barmerge.lookahead_on), request.security(syminfo.tickerid, tf, low[1], lookahead=barmerge.lookahead_on)]
+
+[wH, wL]   = f_mtf("W")
+[dH, dL]   = f_mtf("D")
+[h1H, h1L] = f_mtf("60")
+[m30H, m30L] = f_mtf("30")
+[m15H, m15L] = f_mtf("15")
+
+var line wHi = na, var line wLo = na
+var line dHi = na, var line dLo = na
+var line h1Hi = na, var line h1Lo = na
+var line m30Hi = na, var line m30Lo = na
+var line m15Hi = na, var line m15Lo = na
+var label wHiL = na, var label wLoL = na
+var label dHiL = na, var label dLoL = na
+var label h1HiL = na, var label h1LoL = na
+var label m30HiL = na, var label m30LoL = na
+var label m15HiL = na, var label m15LoL = na
+
+drawMtf(show, hi, lo, col, sty, sz, tag, lnHi, lnLo, lbHi, lbLo) =>
+    line _lh = lnHi, line _ll = lnLo, label _bh = lbHi, label _bl = lbLo
+    if show
+        if not na(_lh)
+            line.delete(_lh)
+            line.delete(_ll)
+            label.delete(_bh)
+            label.delete(_bl)
+        _lh := line.new(bar_index - 1, hi, bar_index, hi, color=col, style=styleOpt(sty), extend=extend.right)
+        _ll := line.new(bar_index - 1, lo, bar_index, lo, color=col, style=styleOpt(sty), extend=extend.right)
+        _bh := label.new(bar_index, hi, tag + "H", color=color.new(col, 100), textcolor=col, style=label.style_label_left, size=sizeOpt(sz))
+        _bl := label.new(bar_index, lo, tag + "L", color=color.new(col, 100), textcolor=col, style=label.style_label_left, size=sizeOpt(sz))
+    [_lh, _ll, _bh, _bl]
+
+if barstate.islast
+    [a,b,c,d]     = drawMtf(showW,  wH,   wL,   wColor,  wStyle,  wSize,  "W",   wHi,   wLo,   wHiL,   wLoL)
+    wHi := a, wLo := b, wHiL := c, wLoL := d
+    [e,f,g,h]     = drawMtf(showD,  dH,   dL,   dColor,  dStyle,  dSize,  "D",   dHi,   dLo,   dHiL,   dLoL)
+    dHi := e, dLo := f, dHiL := g, dLoL := h
+    [i,j,k,l]     = drawMtf(showH1, h1H,  h1L,  h1Color, h1Style, h1Size, "1H",  h1Hi,  h1Lo,  h1HiL,  h1LoL)
+    h1Hi := i, h1Lo := j, h1HiL := k, h1LoL := l
+    [m,n,o,p]     = drawMtf(show30, m30H, m30L, m30Color,m30Style,m30Size,"30M", m30Hi, m30Lo, m30HiL, m30LoL)
+    m30Hi := m, m30Lo := n, m30HiL := o, m30LoL := p
+    [q,r,s,t]     = drawMtf(show15, m15H, m15L, m15Color,m15Style,m15Size,"15M", m15Hi, m15Lo, m15HiL, m15LoL)
+    m15Hi := q, m15Lo := r, m15HiL := s, m15LoL := t
+
+// ============================================================================
+// 3. GOLD PSYCHOLOGICAL LEVELS
+// ============================================================================
+showGold   = input.bool(false, "Show Gold Psychological Levels", group=gGold)
+goldStep   = input.float(10.0, "Level Step ($)", step=1, group=gGold)
+goldUp     = input.int(10, "Levels Above", minval=1, group=gGold)
+goldDn     = input.int(10, "Levels Below", minval=1, group=gGold)
+goldColor  = input.color(color.new(color.yellow, 30), "Color", group=gGold)
+goldStyle  = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"], group=gGold)
+
+var line[] goldLines = array.new_line()
+if barstate.islast and showGold
+    for i = 0 to array.size(goldLines) - 1
+        line.delete(array.get(goldLines, i))
+    array.clear(goldLines)
+    basis = math.round(close / goldStep) * goldStep
+    for i = -goldDn to goldUp
+        lv = basis + i * goldStep
+        ln = line.new(bar_index - 50, lv, bar_index, lv, color=goldColor, style=styleOpt(goldStyle), extend=extend.right)
+        array.push(goldLines, ln)
+
+// ============================================================================
+// 4. SMART PRICE LEVELS (.00 .25 .50 .75 .90)
+// ============================================================================
+showSmart    = input.bool(false, "Show Smart Price Levels", group=gSmart)
+smartStep    = input.float(1.0,  "Integer Step",            group=gSmart)
+smartUp      = input.int(10, "Levels Above", minval=1, group=gSmart)
+smartDn      = input.int(10, "Levels Below", minval=1, group=gSmart)
+useE00       = input.bool(true,  ".00", inline="e", group=gSmart)
+useE25       = input.bool(true,  ".25", inline="e", group=gSmart)
+useE50       = input.bool(true,  ".50", inline="e", group=gSmart)
+useE75       = input.bool(true,  ".75", inline="e", group=gSmart)
+useE90       = input.bool(true,  ".90", inline="e", group=gSmart)
+smartColor   = input.color(color.new(color.aqua, 40), "Color", group=gSmart)
+smartStyle   = input.string("Dotted", "Style", options=["Solid","Dashed","Dotted"], group=gSmart)
+
+var line[] smartLines = array.new_line()
+if barstate.islast and showSmart
+    for i = 0 to array.size(smartLines) - 1
+        line.delete(array.get(smartLines, i))
+    array.clear(smartLines)
+    base = math.floor(close / smartStep) * smartStep
+    for i = -smartDn to smartUp
+        whole = base + i * smartStep
+        endings = array.new_float()
+        if useE00
+            array.push(endings, 0.00)
+        if useE25
+            array.push(endings, 0.25 * smartStep)
+        if useE50
+            array.push(endings, 0.50 * smartStep)
+        if useE75
+            array.push(endings, 0.75 * smartStep)
+        if useE90
+            array.push(endings, 0.90 * smartStep)
+        for j = 0 to array.size(endings) - 1
+            lv = whole + array.get(endings, j)
+            ln = line.new(bar_index - 50, lv, bar_index, lv, color=smartColor, style=styleOpt(smartStyle), extend=extend.right)
+            array.push(smartLines, ln)
+
+smartHit = false
+if showSmart and barstate.isconfirmed
+    base2 = math.floor(close / smartStep) * smartStep
+    for i = -2 to 2
+        whole = base2 + i * smartStep
+        if useE00 and math.abs(close - whole) <= syminfo.mintick * 2
+            smartHit := true
+        if useE50 and math.abs(close - (whole + 0.5 * smartStep)) <= syminfo.mintick * 2
+            smartHit := true
+        if useE90 and math.abs(close - (whole + 0.9 * smartStep)) <= syminfo.mintick * 2
+            smartHit := true
+
+// ============================================================================
+// 5. SMART SUPPORT & RESISTANCE (frequent close levels)
+// ============================================================================
+showSR      = input.bool(true, "Show Smart S/R", group=gSR)
+srLookback  = input.int(30,    "Lookback Candles", minval=5, group=gSR)
+srMinTouch  = input.int(9,     "Min Touches",      minval=2, group=gSR)
+srTol       = input.float(0.1, "Tolerance (%)", step=0.05, group=gSR)
+srColor     = input.color(color.new(color.white, 30), "Color", group=gSR)
+srStyle     = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"], group=gSR)
+
+var line[] srLines = array.new_line()
+if barstate.islast and showSR
+    for i = 0 to array.size(srLines) - 1
+        line.delete(array.get(srLines, i))
+    array.clear(srLines)
+    closes = array.new_float()
+    for i = 0 to srLookback - 1
+        array.push(closes, close[i])
+    tol = close * srTol / 100
+    drawn = array.new_float()
+    for i = 0 to array.size(closes) - 1
+        lv = array.get(closes, i)
+        cnt = 0
+        for j = 0 to array.size(closes) - 1
+            if math.abs(array.get(closes, j) - lv) <= tol
+                cnt += 1
+        dup = false
+        for k = 0 to array.size(drawn) - 1
+            if math.abs(array.get(drawn, k) - lv) <= tol
+                dup := true
+                break
+        if cnt >= srMinTouch and not dup
+            array.push(drawn, lv)
+            ln = line.new(bar_index - srLookback, lv, bar_index, lv, color=srColor, style=styleOpt(srStyle), extend=extend.right)
+            array.push(srLines, ln)
+
+// ============================================================================
+// 6. BREAK OF STRUCTURE (BOS)
+// ============================================================================
+showBOS     = input.bool(true, "Show BOS", group=gBOS)
+bosLen      = input.int(10, "Pivot Length", minval=2, group=gBOS)
+bosBullColor= input.color(color.lime,  "Bull Color", group=gBOS)
+bosBearColor= input.color(color.red,   "Bear Color", group=gBOS)
+bosSize     = input.string("small", "Text Size", options=["tiny","small","normal","large"], group=gBOS)
+
+ph = ta.pivothigh(high, bosLen, bosLen)
+pl = ta.pivotlow(low,  bosLen, bosLen)
+var float lastPH = na
+var float lastPL = na
+var int   lastPHbar = na
+var int   lastPLbar = na
+if not na(ph)
+    lastPH := ph
+    lastPHbar := bar_index - bosLen
+if not na(pl)
+    lastPL := pl
+    lastPLbar := bar_index - bosLen
+
+bosUp = showBOS and not na(lastPH) and close > lastPH and close[1] <= lastPH
+bosDn = showBOS and not na(lastPL) and close < lastPL and close[1] >= lastPL
+
+if bosUp
+    line.new(lastPHbar, lastPH, bar_index, lastPH, color=bosBullColor, style=line.style_dashed)
+    label.new(bar_index, lastPH, "BOS", color=color.new(bosBullColor, 80), textcolor=bosBullColor, style=label.style_label_down, size=sizeOpt(bosSize))
+if bosDn
+    line.new(lastPLbar, lastPL, bar_index, lastPL, color=bosBearColor, style=line.style_dashed)
+    label.new(bar_index, lastPL, "BOS", color=color.new(bosBearColor, 80), textcolor=bosBearColor, style=label.style_label_up, size=sizeOpt(bosSize))
+
+// ============================================================================
+// 7. FAIR VALUE GAP (FVG)
+// ============================================================================
+showFVG     = input.bool(true, "Show FVG", group=gFVG)
+fvgMinSize  = input.float(0.0, "Min Gap Size (price)", step=0.1, group=gFVG)
+fvgExt      = input.int(30, "Extension Bars", minval=1, group=gFVG)
+fvgOpacity  = input.int(80, "Opacity", minval=0, maxval=100, group=gFVG)
+fvgBullCol  = input.color(color.green, "Bull Color", group=gFVG)
+fvgBearCol  = input.color(color.red,   "Bear Color", group=gFVG)
+
+type FVG
+    box bx
+    float top
+    float bot
+    bool bull
+    bool alerted50
+
+var FVG[] fvgs = array.new<FVG>()
+
+bullFVG = low > high[2] and close[1] > high[2] and (low - high[2]) >= fvgMinSize
+bearFVG = high < low[2]  and close[1] < low[2]  and (low[2] - high) >= fvgMinSize
+
+if showFVG and bullFVG
+    bx = box.new(bar_index - 2, low, bar_index + fvgExt, high[2], bgcolor=color.new(fvgBullCol, fvgOpacity), border_color=color.new(fvgBullCol, fvgOpacity))
+    array.push(fvgs, FVG.new(bx, low, high[2], true, false))
+if showFVG and bearFVG
+    bx = box.new(bar_index - 2, low[2], bar_index + fvgExt, high, bgcolor=color.new(fvgBearCol, fvgOpacity), border_color=color.new(fvgBearCol, fvgOpacity))
+    array.push(fvgs, FVG.new(bx, low[2], high, false, false))
+
+fvg50 = false
+fvgFilled = false
+if array.size(fvgs) > 0
+    for i = array.size(fvgs) - 1 to 0
+        f = array.get(fvgs, i)
+        mid = (f.top + f.bot) / 2
+        if not f.alerted50 and low <= mid and high >= mid
+            fvg50 := true
+            f.alerted50 := true
+        filled = f.bull ? low <= f.bot : high >= f.top
+        if filled
+            fvgFilled := true
+            box.delete(f.bx)
+            array.remove(fvgs, i)
+
+// ============================================================================
+// 8. SAMURAI MULTI-TIMEFRAME PA TABLE
+// ============================================================================
+showMTFTable = input.bool(true, "Show MTF PA Table", group=gMTFPA)
+tablePos     = input.string("top_right", "Position", options=["top_left","top_right","bottom_left","bottom_right","middle_right"], group=gMTFPA)
+
+paSignal(tf) =>
+    c = request.security(syminfo.tickerid, tf, close, lookahead=barmerge.lookahead_off)
+    o = request.security(syminfo.tickerid, tf, open,  lookahead=barmerge.lookahead_off)
+    e = request.security(syminfo.tickerid, tf, ta.ema(close, 20), lookahead=barmerge.lookahead_off)
+    sig = c > o and c > e ? "BUY" : c < o and c < e ? "SELL" : "WAIT"
+    sig
+
+tfs    = array.from("15", "30", "60", "240", "D", "W")
+tfLabs = array.from("15M", "30M", "1H", "4H", "D", "W")
+
+var table paTable = na
+posOpt(p) => p == "top_left" ? position.top_left : p == "top_right" ? position.top_right : p == "bottom_left" ? position.bottom_left : p == "bottom_right" ? position.bottom_right : position.middle_right
+
+if barstate.islast and showMTFTable
+    if not na(paTable)
+        table.delete(paTable)
+    paTable := table.new(posOpt(tablePos), 2, array.size(tfs) + 1, bgcolor=color.new(color.black, 20), border_width=1)
+    table.cell(paTable, 0, 0, "TF",     text_color=color.white, bgcolor=color.new(color.gray, 30))
+    table.cell(paTable, 1, 0, "Signal", text_color=color.white, bgcolor=color.new(color.gray, 30))
+    for i = 0 to array.size(tfs) - 1
+        s = paSignal(array.get(tfs, i))
+        col = s == "BUY" ? color.new(color.green, 30) : s == "SELL" ? color.new(color.red, 30) : color.new(color.gray, 50)
+        table.cell(paTable, 0, i + 1, array.get(tfLabs, i), text_color=color.white)
+        table.cell(paTable, 1, i + 1, s, text_color=color.white, bgcolor=col)
+
+// ============================================================================
+// 9. ALERTS
+// ============================================================================
+alFVG50     = input.bool(true, "Alert: FVG 50% test",       group=gAlert)
+alFVGFill   = input.bool(true, "Alert: FVG filled",         group=gAlert)
+alBoxUp     = input.bool(true, "Alert: Box breakout UP",    group=gAlert)
+alBoxDn     = input.bool(true, "Alert: Box breakout DOWN",  group=gAlert)
+alSmart     = input.bool(true, "Alert: Smart Price hit",    group=gAlert)
+
+alertcondition(alFVG50   and fvg50,     title="FVG 50% Test",      message="Samurai: Price testing FVG 50%")
+alertcondition(alFVGFill and fvgFilled, title="FVG Filled",        message="Samurai: FVG has been filled")
+alertcondition(alBoxUp   and boxBreakUp,title="Samurai Box UP",    message="Samurai: Price broke above Samurai Box")
+alertcondition(alBoxDn   and boxBreakDn,title="Samurai Box DOWN",  message="Samurai: Price broke below Samurai Box")
+alertcondition(alSmart   and smartHit,  title="Smart Price Level", message="Samurai: Price at Smart Level")
