@@ -162,9 +162,8 @@ goldStyle  = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"],
 
 var line[] goldLines = array.new<line>()
 if barstate.islast and showGold
-    if array.size(goldLines) > 0
-        for i = 0 to array.size(goldLines) - 1
-            line.delete(array.get(goldLines, i))
+    for ln in goldLines
+        line.delete(ln)
     array.clear(goldLines)
     basis = math.round(close / goldStep) * goldStep
     for i = -goldDn to goldUp
@@ -189,9 +188,8 @@ smartStyle   = input.string("Dotted", "Style", options=["Solid","Dashed","Dotted
 
 var line[] smartLines = array.new<line>()
 if barstate.islast and showSmart
-    if array.size(smartLines) > 0
-        for i = 0 to array.size(smartLines) - 1
-            line.delete(array.get(smartLines, i))
+    for ln in smartLines
+        line.delete(ln)
     array.clear(smartLines)
     base = math.floor(close / smartStep) * smartStep
     for i = -smartDn to smartUp
@@ -236,27 +234,24 @@ srStyle     = input.string("Solid", "Style", options=["Solid","Dashed","Dotted"]
 
 var line[] srLines = array.new<line>()
 if barstate.islast and showSR
-    if array.size(srLines) > 0
-        for i = 0 to array.size(srLines) - 1
-            line.delete(array.get(srLines, i))
+    for ln in srLines
+        line.delete(ln)
     array.clear(srLines)
     closes = array.new<float>()
     for i = 0 to srLookback - 1
         array.push(closes, close[i])
     tol = close * srTol / 100
     drawn = array.new<float>()
-    for i = 0 to array.size(closes) - 1
-        lv = array.get(closes, i)
+    for lv in closes
         cnt = 0
-        for j = 0 to array.size(closes) - 1
-            if math.abs(array.get(closes, j) - lv) <= tol
+        for cv in closes
+            if math.abs(cv - lv) <= tol
                 cnt += 1
         dup = false
-        if array.size(drawn) > 0
-            for k = 0 to array.size(drawn) - 1
-                if math.abs(array.get(drawn, k) - lv) <= tol
-                    dup := true
-                    break
+        for dv in drawn
+            if math.abs(dv - lv) <= tol
+                dup := true
+                break
         if cnt >= srMinTouch and not dup
             array.push(drawn, lv)
             ln = line.new(bar_index - srLookback, lv, bar_index, lv, color=srColor, style=styleOpt(srStyle), extend=extend.right)
