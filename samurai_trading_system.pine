@@ -607,7 +607,7 @@ var float activeEntry = na
 var float activeSL    = na
 var float activeTP1   = na
 var float activeTP2   = na
-var bool  activeBuy   = na
+var bool  activeBuy   = false
 var bool  tp1Done     = false
 var bool  tp2Done     = false
 
