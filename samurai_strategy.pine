@@ -811,8 +811,15 @@ swingGateS = not useHTFSwingEff  or htfSwingBear
 touchGate  = not useEMATouchEff  or firstTouchAfter
 cornerGate = not useCornerGate   or nearCorner
 
-buySignal  = buyScore  >= minScore and notSideways and volOK and sessOK and (not useStruct or structBull) and (not usePA or paBullOK) and not buyBlockedRSI  and h4GateB and notMASide and swingGateB and touchGate and cornerGate
-sellSignal = sellScore >= minScore and notSideways and volOK and sessOK and (not useStruct or structBear) and (not usePA or paBearOK) and not sellBlockedRSI and h4GateS and notMASide and swingGateS and touchGate and cornerGate
+// Base signal (v1 logic) — passed to request.security for MTF confluence.
+// New gates are NOT included here to avoid nested request.security calls
+// that break MTF aggregation (Pine v6 limitation).
+buySignalBase  = buyScore  >= minScore and notSideways and volOK and sessOK and (not useStruct or structBull) and (not usePA or paBullOK) and not buyBlockedRSI
+sellSignalBase = sellScore >= minScore and notSideways and volOK and sessOK and (not useStruct or structBear) and (not usePA or paBearOK) and not sellBlockedRSI
+
+// Display signal — base + new gates applied locally on current TF
+buySignal  = buySignalBase  and h4GateB and notMASide and swingGateB and touchGate and cornerGate
+sellSignal = sellSignalBase and h4GateS and notMASide and swingGateS and touchGate and cornerGate
 
 // edge detection — only on new signal
 newBuy  = buySignal  and not buySignal[1]
@@ -859,18 +866,20 @@ rr4        = input.float(4.0, "TP4 RR ratio", step=0.1, group=gTrade)
 useFixedSL = input.bool(false, "Use Fixed SL (points)", group=gTrade)
 fixedSL    = input.int(1000, "SL Points (from manual)", minval=1, group=gTrade)
 
-[buy15, sell15]   = request.security(syminfo.tickerid, "15",  [buySignal, sellSignal])
-[buy30, sell30]   = request.security(syminfo.tickerid, "30",  [buySignal, sellSignal])
-[buy60, sell60]   = request.security(syminfo.tickerid, "60",  [buySignal, sellSignal])
-[buy240, sell240] = request.security(syminfo.tickerid, "240", [buySignal, sellSignal])
-[buyD, sellD]     = request.security(syminfo.tickerid, "D",   [buySignal, sellSignal])
+// MTF security uses Base signal (no nested security inside)
+[buy15, sell15]   = request.security(syminfo.tickerid, "15",  [buySignalBase, sellSignalBase])
+[buy30, sell30]   = request.security(syminfo.tickerid, "30",  [buySignalBase, sellSignalBase])
+[buy60, sell60]   = request.security(syminfo.tickerid, "60",  [buySignalBase, sellSignalBase])
+[buy240, sell240] = request.security(syminfo.tickerid, "240", [buySignalBase, sellSignalBase])
+[buyD, sellD]     = request.security(syminfo.tickerid, "D",   [buySignalBase, sellSignalBase])
 
 buyTFs  = (buy15 ? 1 : 0)  + (buy30 ? 1 : 0)  + (buy60 ? 1 : 0)  + (buy240 ? 1 : 0)  + (buyD ? 1 : 0)
 sellTFs = (sell15 ? 1 : 0) + (sell30 ? 1 : 0) + (sell60 ? 1 : 0) + (sell240 ? 1 : 0) + (sellD ? 1 : 0)
 
 mtfMinEff = on4H ? math.max(mtfMin, p4hMTFmin) : mtfMin
-finalBuy  = checkMTF ? buyTFs  >= mtfMinEff : buySignal
-finalSell = checkMTF ? sellTFs >= mtfMinEff : sellSignal
+// MTF agreement on Base + current-TF new gates applied to final entry
+finalBuy  = (checkMTF ? buyTFs  >= mtfMinEff : buySignalBase) and h4GateB and notMASide and swingGateB and touchGate and cornerGate
+finalSell = (checkMTF ? sellTFs >= mtfMinEff : sellSignalBase) and h4GateS and notMASide and swingGateS and touchGate and cornerGate
 newFinalBuy  = finalBuy  and not finalBuy[1]
 newFinalSell = finalSell and not finalSell[1]
 
