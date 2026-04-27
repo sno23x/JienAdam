@@ -556,6 +556,7 @@ momBear = mom < 0
 // ============================================================================
 minScore    = input.int(3, "Min Score (out of 5)", minval=1, maxval=5, group=gConf)
 showScore   = input.bool(true, "Show Score Label", group=gConf)
+maxSig      = input.int(3, "Max historical signal labels (per side)", minval=1, group=gConf)
 useStruct   = input.bool(true, "Require Swing Structure",      group=gConf)
 useSideways = input.bool(true, "Block Sideways (ADX filter)",  group=gConf)
 adxLen      = input.int(14, "ADX Length",   minval=2, group=gConf)
@@ -653,10 +654,18 @@ paBearName = bearEngulf ? "BearEng" : shootingStar ? "ShootStar" : threeBlack ? 
 paBullOK = paBull and zoneBull
 paBearOK = paBear and zoneBear
 
+var label[] paBullLbls = array.new<label>()
+var label[] paBearLbls = array.new<label>()
 if showPA and paBullOK
-    label.new(bar_index, low, paBullName, color=color.new(color.green, 40), textcolor=color.white, style=label.style_label_up, size=size.tiny)
+    lbl = label.new(bar_index, low, paBullName, color=color.new(color.green, 40), textcolor=color.white, style=label.style_label_up, size=size.tiny)
+    array.push(paBullLbls, lbl)
+    if array.size(paBullLbls) > maxSig
+        label.delete(array.shift(paBullLbls))
 if showPA and paBearOK
-    label.new(bar_index, high, paBearName, color=color.new(color.red, 40), textcolor=color.white, style=label.style_label_down, size=size.tiny)
+    lbl = label.new(bar_index, high, paBearName, color=color.new(color.red, 40), textcolor=color.white, style=label.style_label_down, size=size.tiny)
+    array.push(paBearLbls, lbl)
+    if array.size(paBearLbls) > maxSig
+        label.delete(array.shift(paBearLbls))
 
 buyScore  = (zoneBull ? 1 : 0) + (maBull ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
 sellScore = (zoneBear ? 1 : 0) + (maBear ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
@@ -678,10 +687,18 @@ f_breakdown(isBuy) =>
     tag = on4H ? " [4H]" : ""
     "Z" + f_mark(z) + " M" + f_mark(m) + " R" + f_mark(r) + " F" + f_mark(fi) + " Mo" + f_mark(mo) + tag
 
+var label[] buyLbls  = array.new<label>()
+var label[] sellLbls = array.new<label>()
 if showScore and newBuy
-    label.new(bar_index, low, "BUY " + str.tostring(buyScore) + "/5\n" + f_breakdown(true), color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_up, size=size.small)
+    lbl = label.new(bar_index, low, "BUY " + str.tostring(buyScore) + "/5\n" + f_breakdown(true), color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_up, size=size.small)
+    array.push(buyLbls, lbl)
+    if array.size(buyLbls) > maxSig
+        label.delete(array.shift(buyLbls))
 if showScore and newSell
-    label.new(bar_index, high, "SELL " + str.tostring(sellScore) + "/5\n" + f_breakdown(false), color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_down, size=size.small)
+    lbl = label.new(bar_index, high, "SELL " + str.tostring(sellScore) + "/5\n" + f_breakdown(false), color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_down, size=size.small)
+    array.push(sellLbls, lbl)
+    if array.size(sellLbls) > maxSig
+        label.delete(array.shift(sellLbls))
 
 // ============================================================================
 // 15. ENTRY / TP / SL (multi-TF confluence + Fib-based levels)
@@ -828,6 +845,7 @@ if not na(activeEntry)
         if low <= activeSL
             slHit := true
             activeEntry := na
+            f_clear_trade()
     else
         if not tp1Done and low <= activeTP1
             tp1Hit := true
@@ -844,6 +862,7 @@ if not na(activeEntry)
         if high >= activeSL
             slHit := true
             activeEntry := na
+            f_clear_trade()
 
 // ============================================================================
 // 9. ALERTS
