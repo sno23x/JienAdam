@@ -573,7 +573,7 @@ momBear = mom < 0
 // ============================================================================
 // 14. CONFLUENCE SIGNAL (score-based)
 // ============================================================================
-minScore    = input.int(4, "Min Score (out of 5)", minval=1, maxval=5, group=gConf)
+minScore    = input.int(3, "Min Score (out of 5)", minval=1, maxval=5, group=gConf)
 showScore   = input.bool(true, "Show Score Label", group=gConf)
 maxSig      = input.int(3, "Max historical signal labels (per side)", minval=1, group=gConf)
 useStruct   = input.bool(true, "Require Swing Structure",      group=gConf)
