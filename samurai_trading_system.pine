@@ -441,6 +441,8 @@ rsiOS       = input.float(30, "Oversold (bias Sell)", group=gRSI)
 rsiOB       = input.float(70, "Overbought (bias Buy)", group=gRSI)
 rsiBigOnly  = input.bool(true, "Apply RSI score only on big TFs (>= threshold)", group=gRSI)
 rsiBigMin   = input.int(60, "Big TF threshold (minutes)", minval=1, group=gRSI)
+useRSIBlock = input.bool(true, "Block counter-trend entry at RSI 30/70", group=gRSI)
+rsiHoldBars = input.int(3,    "Reclaim & hold bars after extreme",      minval=1, group=gRSI)
 rsiVal      = ta.rsi(close, rsiLen)
 tfMinutes   = timeframe.in_seconds(timeframe.period) / 60
 isBigTF     = tfMinutes >= rsiBigMin
@@ -448,6 +450,20 @@ rsiActive   = not rsiBigOnly or isBigTF
 // When RSI is inactive (small TF) both sides get +1 so it doesn't tilt either way
 rsiBull     = (not rsiActive) or rsiVal > rsiMid
 rsiBear     = (not rsiActive) or rsiVal < rsiMid
+
+// "Reclaim & hold" — track bars since RSI last touched each extreme
+var int lastBelowOS = na
+var int lastAboveOB = na
+if rsiVal <= rsiOS
+    lastBelowOS := bar_index
+if rsiVal >= rsiOB
+    lastAboveOB := bar_index
+barsSinceOS = na(lastBelowOS) ? 9999 : bar_index - lastBelowOS
+barsSinceOB = na(lastAboveOB) ? 9999 : bar_index - lastAboveOB
+
+// Block opposite-direction entries while RSI is in / recently at extreme
+buyBlockedRSI  = useRSIBlock and (rsiVal <= rsiOS or barsSinceOS < rsiHoldBars)
+sellBlockedRSI = useRSIBlock and (rsiVal >= rsiOB or barsSinceOB < rsiHoldBars)
 
 // ============================================================================
 // 12. FIB RETRACEMENT (auto from last swing PH/PL)
@@ -645,8 +661,8 @@ if showPA and paBearOK
 buyScore  = (zoneBull ? 1 : 0) + (maBull ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
 sellScore = (zoneBear ? 1 : 0) + (maBear ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
 
-buySignal  = buyScore  >= minScore and notSideways and volOK and sessOK and (not useStruct or structBull) and (not usePA or paBullOK)
-sellSignal = sellScore >= minScore and notSideways and volOK and sessOK and (not useStruct or structBear) and (not usePA or paBearOK)
+buySignal  = buyScore  >= minScore and notSideways and volOK and sessOK and (not useStruct or structBull) and (not usePA or paBullOK) and not buyBlockedRSI
+sellSignal = sellScore >= minScore and notSideways and volOK and sessOK and (not useStruct or structBear) and (not usePA or paBearOK) and not sellBlockedRSI
 
 // edge detection — only on new signal
 newBuy  = buySignal  and not buySignal[1]
