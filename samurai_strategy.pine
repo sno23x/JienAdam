@@ -760,16 +760,13 @@ htfNewBar = ta.change(time(cornerTF)) != 0
 [prevHTFClose, prevHTFOpen] = request.security(syminfo.tickerid, cornerTF, [close[1], open[1]], lookahead=barmerge.lookahead_off)
 htfBodyPct = not na(prevHTFOpen) and prevHTFOpen != 0 ? math.abs(prevHTFClose - prevHTFOpen) / prevHTFOpen * 100 : 0.0
 
-var float[] corners     = array.new<float>()
-var line[]  cornerLines = array.new<line>()
-
-if useCornerLines and htfNewBar and not na(prevHTFClose) and htfBodyPct >= cornerMinBody
+// Corner data tracking — pure float array, NO drawing here (must stay
+// drawing-free so nearCorner can flow into buySignal → request.security)
+var float[] corners = array.new<float>()
+if htfNewBar and not na(prevHTFClose) and htfBodyPct >= cornerMinBody
     array.push(corners, prevHTFClose)
-    ln = line.new(bar_index - 1, prevHTFClose, bar_index + 50, prevHTFClose, color=cornerCol, style=line.style_dashed, extend=extend.right)
-    array.push(cornerLines, ln)
     if array.size(corners) > maxCorners
         array.shift(corners)
-        line.delete(array.shift(cornerLines))
 
 cornerTol  = atrVal * cornerTolATR
 nearCorner = false
@@ -779,6 +776,14 @@ if array.size(corners) > 0
         if low <= c + cornerTol and high >= c - cornerTol
             nearCorner := true
             break
+
+// Corner line drawing — SEPARATE block, isolated from buySignal chain
+var line[] cornerLines = array.new<line>()
+if useCornerLines and htfNewBar and not na(prevHTFClose) and htfBodyPct >= cornerMinBody
+    ln = line.new(bar_index - 1, prevHTFClose, bar_index + 50, prevHTFClose, color=cornerCol, style=line.style_dashed, extend=extend.right)
+    array.push(cornerLines, ln)
+    if array.size(cornerLines) > maxCorners
+        line.delete(array.shift(cornerLines))
 
 // ============================================================================
 // SCORE + SIGNAL GATES
