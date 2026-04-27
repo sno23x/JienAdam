@@ -78,8 +78,10 @@ if sessEnd and showBox
         curExtDn2 := box.new(boxStart, boxLo - rng * extMult1, bar_index, boxLo - rng * extMult2, bgcolor=colExtDn, border_color=colExtDn, extend=extend.right)
 
 // Box breakout alerts
-boxBreakUp = showBox and not na(boxHi) and ta.crossover(close, boxHi) and not inSess
-boxBreakDn = showBox and not na(boxLo) and ta.crossunder(close, boxLo) and not inSess
+boxCrossUp   = ta.crossover(close, boxHi)
+boxCrossDown = ta.crossunder(close, boxLo)
+boxBreakUp = showBox and not na(boxHi) and boxCrossUp   and not inSess
+boxBreakDn = showBox and not na(boxLo) and boxCrossDown and not inSess
 
 // ============================================================================
 // 2. MULTI-TIMEFRAME HIGH / LOW
@@ -357,6 +359,15 @@ paSignal(tf) =>
 tfs    = array.from("15", "30", "60", "240", "D", "W")
 tfLabs = array.from("15M", "30M", "1H", "4H", "D", "W")
 
+// Pre-compute paSignal on every bar (request.security has state, must run consistently)
+sig15  = paSignal("15")
+sig30  = paSignal("30")
+sig60  = paSignal("60")
+sig240 = paSignal("240")
+sigD   = paSignal("D")
+sigW   = paSignal("W")
+sigArr = array.from(sig15, sig30, sig60, sig240, sigD, sigW)
+
 var table paTable = na
 posOpt(p) => p == "top_left" ? position.top_left : p == "top_right" ? position.top_right : p == "bottom_left" ? position.bottom_left : p == "bottom_right" ? position.bottom_right : position.middle_right
 
@@ -367,7 +378,7 @@ if barstate.islast and showMTFTable
     table.cell(paTable, 0, 0, "TF",     text_color=color.white, bgcolor=color.new(color.gray, 30))
     table.cell(paTable, 1, 0, "Signal", text_color=color.white, bgcolor=color.new(color.gray, 30))
     for i = 0 to array.size(tfs) - 1
-        s = paSignal(array.get(tfs, i))
+        s = array.get(sigArr, i)
         col = s == "BUY" ? color.new(color.green, 30) : s == "SELL" ? color.new(color.red, 30) : color.new(color.gray, 50)
         table.cell(paTable, 0, i + 1, array.get(tfLabs, i), text_color=color.white)
         table.cell(paTable, 1, i + 1, s, text_color=color.white, bgcolor=col)
