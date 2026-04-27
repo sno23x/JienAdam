@@ -14,27 +14,46 @@ Two files: a live indicator and a full backtest strategy.
 
 ## Signal Logic
 
+### MA Ribbon (per manual)
+| MA | Type | Length | Source |
+|----|------|--------|--------|
+| MA1 | EMA | 100 | Close |
+| MA2 | EMA | 133 | Close |
+| MA3 | EMA | 233 | Close |
+| MA4 | WMA | 720 | (H+L+C+C)/4 |
+
+**Trend rules per manual:**
+- **Uptrend:** Close above ALL MAs + breaking new highs + not breaking last swing low
+- **Downtrend:** Close below ALL MAs + breaking new lows + not breaking last swing high
+- **Sideway:** EMA Ribbon overlapping → no trade
+- **Always read trend from higher TF** (H4 / D / W)
+
 ### Confluence Score (max 5/5)
 Each factor scores 1 point toward a BUY or SELL signal:
 
 | # | Factor | Source |
 |---|--------|--------|
-| 1 | MA Ribbon slope (EMA 9/21/50/200) | Current TF |
-| 2 | RSI vs 50 midline | Current TF |
-| 3 | Break of Structure (BOS) direction | Current TF |
-| 4 | Fair Value Gap (FVG) fill | Current TF |
-| 5 | Price Action (Samurai Box / SR levels) | Current TF |
+| 1 | Zone (Box / FVG / BOS) alignment | Current TF |
+| 2 | MA Ribbon (price above/below all 4) | Current TF |
+| 3 | RSI vs 50 midline | Current TF |
+| 4 | At Fib retracement zone | Current TF |
+| 5 | Momentum direction | Current TF |
 
-**Minimum threshold:** 3/5 (configurable). Signal fires when score ≥ threshold.
+**Minimum threshold:** 4/5 (default, was 3/5). Signal fires when score ≥ threshold.
 
 ### Signal Filters (all must pass)
-- **ATR filter** — minimum volatility (atrPct = atr/close × 100 ≥ 0.1%)
-- **Session gates** — Asia / London / NY toggles
+- **ATR filter** — minimum volatility (atrPct ≥ 0.1%)
+- **Session gates** — per-session toggles (Asia OFF / London ON / NY ON by default)
 - **Market structure** — optional BOS alignment required
 - **RSI extreme block** — prevents counter-trend entries at extremes:
   - RSI ≤ 30 → BUY is blocked (market chose DOWN = sell bias)
   - RSI ≥ 70 → SELL is blocked (market chose UP = buy bias)
   - After RSI exits extreme, hold block for N bars (reclaim & hold, default 3)
+- **H4 Trend Gate** ⭐ (new) — entire MA Ribbon evaluated on H4; trade only with H4 trend
+- **Sideway block via EMA overlap** (new) — when EMA 100/133/233 spread <0.3% → no trade
+- **HTF Swing structure** (new) — block trades that break last H4 swing low (BUY) / swing high (SELL)
+- **EMA Touch Entry** (new, optional) — require first MA touch after N bars away
+- **Corner (มุม) levels** (new) — H4/D candle close levels drawn as S/R; optional gate
 
 ### Multi-TF Confirmation
 Pulls RSI and PA signals from 15M / 30M / 1H / 4H simultaneously via `request.security()`.
@@ -138,18 +157,24 @@ At 46.3% WR the system is theoretically +EV at TP1 RR, but partial-close dynamic
 
 ## Settings Quick Reference
 
-### Recommended 1H XAUUSD Settings
+### Recommended 1H XAUUSD Settings (v2 — manual-aligned)
 ```
-Min Score:      3/5
+Min Score:      4/5  (was 3/5)
 TP Mode:        RR (SL-based)
 RR:             1.5 / 2.0 / 3.0 / 4.0
 SL Multiplier:  1.5× ATR
 Trail SL:       Step (TP→prior TP)
 Risk %:         1% per trade
 Min Lot:        0.01
-Sessions:       London + NY only
+Sessions:       London + NY only (Asia OFF)
 RSI Block:      ON (reclaim hold = 3 bars)
 ATR Filter:     0.1% min
+H4 Trend Gate:  ON  (4H MA Ribbon)
+EMA Overlap:    ON  (block when spread <0.3%)
+HTF Swing:      ON  (don't break H4 swing)
+EMA Touch:      OFF (optional, can over-filter)
+Corner Lines:   ON  (H4 visual S/R)
+Corner Gate:    OFF (optional)
 ```
 
 ### Recommended 4H XAUUSD Settings
