@@ -1,0 +1,184 @@
+# Samurai Trading System — Project Reference
+
+## Overview
+
+A Pine Script v6 trading system for **XAUUSD (Gold)** on TradingView.
+Two files: a live indicator and a full backtest strategy.
+
+| File | Purpose |
+|------|---------|
+| `samurai_trading_system.pine` | Live indicator — signals, alerts, on-chart levels |
+| `samurai_strategy.pine` | Backtest strategy — multi-TP partial close, trail SL, dashboard |
+
+---
+
+## Signal Logic
+
+### Confluence Score (max 5/5)
+Each factor scores 1 point toward a BUY or SELL signal:
+
+| # | Factor | Source |
+|---|--------|--------|
+| 1 | MA Ribbon slope (EMA 9/21/50/200) | Current TF |
+| 2 | RSI vs 50 midline | Current TF |
+| 3 | Break of Structure (BOS) direction | Current TF |
+| 4 | Fair Value Gap (FVG) fill | Current TF |
+| 5 | Price Action (Samurai Box / SR levels) | Current TF |
+
+**Minimum threshold:** 3/5 (configurable). Signal fires when score ≥ threshold.
+
+### Signal Filters (all must pass)
+- **ATR filter** — minimum volatility (atrPct = atr/close × 100 ≥ 0.1%)
+- **Session gates** — Asia / London / NY toggles
+- **Market structure** — optional BOS alignment required
+- **RSI extreme block** — prevents counter-trend entries at extremes:
+  - RSI ≤ 30 → BUY is blocked (market chose DOWN = sell bias)
+  - RSI ≥ 70 → SELL is blocked (market chose UP = buy bias)
+  - After RSI exits extreme, hold block for N bars (reclaim & hold, default 3)
+
+### Multi-TF Confirmation
+Pulls RSI and PA signals from 15M / 30M / 1H / 4H simultaneously via `request.security()`.
+Big-TF-only RSI mode: RSI filter applied only when current TF ≥ 1H.
+
+---
+
+## Entry / TP / SL
+
+### SL Placement
+- ATR-based: `SL = entry ± atr × slMult`
+- Default multiplier: **1.5×**
+
+### TP Levels (RR-based mode, default)
+| TP | RR Ratio | Close % |
+|----|----------|---------|
+| TP1 | 1.5 × SL distance | 25% |
+| TP2 | 2.0 × SL distance | 25% |
+| TP3 | 3.0 × SL distance | 25% |
+| TP4 | 4.0 × SL distance | 25% |
+
+### Trail SL Modes
+| Mode | Behavior |
+|------|---------|
+| Step (TP→prior TP) | After TP1 → move SL to entry (BE); after TP2 → move SL to TP1; etc. |
+| BE only | Move SL to entry after TP1 only |
+| Off | SL stays fixed until exit |
+
+---
+
+## Risk Sizing
+
+```
+Risk amount = equity × riskPct%       (default 1%)
+Lot size    = riskAmt / (SL_distance × contractSize)
+Minimum lot = 0.01 (fallback if calculated lot < min)
+```
+
+**Contract spec:** `contractSize = 100` (XAUUSD, 100 oz per standard lot)
+
+### ⚠️ Leverage 1:1000 — Capital Warning
+
+With $100 capital and 0.01 lot minimum:
+
+| Item | Value |
+|------|-------|
+| Notional value (Gold @3000) | $3,000 |
+| Margin required (1:1000) | **$3** per trade |
+| SL distance typical 1H gold | 500–750 points |
+| Actual risk at 0.01 lot | **$50–75 = 50–75% of capital** |
+| 1% risk sizing yields | ~0.0002 lot → below minimum |
+| Therefore lot used | 0.01 (fallback) = ~50% actual risk |
+
+**Conclusion:** $100 capital is too small for 0.01 lot on gold with proper risk management.
+Minimum recommended capital for 1% risk with 500-pt SL on 0.01 lot: **$500+**
+
+---
+
+## Alerts (Live Indicator)
+
+8 alert conditions set up in TradingView:
+
+| Alert | Trigger |
+|-------|---------|
+| BUY Signal (15M) | Score ≥ threshold, all filters pass, 15M TF |
+| SELL Signal (15M) | Same, SELL direction |
+| BUY Signal (30M) | 30M TF |
+| SELL Signal (30M) | 30M TF |
+| BUY Signal (1H) | 1H TF |
+| SELL Signal (1H) | 1H TF |
+| BUY Signal (4H) | 4H TF |
+| SELL Signal (4H) | 4H TF |
+
+**Recommended trigger:** "Once Per Bar" (not Once Per Bar Close) to avoid late alerts.  
+Alerts persist until manually deleted — no need to recreate unless chart is reset.
+
+---
+
+## Backtest Results (1H XAUUSD, 1 Year)
+
+| Metric | Value |
+|--------|-------|
+| Initial capital | $100 |
+| Period | ~1 year |
+| Total trades | 67 |
+| Wins | 31 (46.3%) |
+| Losses | 36 (53.7%) |
+| Commission | $0.07/contract |
+| Slippage | 2 points |
+
+**Break-even win rate** at pure TP1 (1.5 RR): ~40%.  
+At 46.3% WR the system is theoretically +EV at TP1 RR, but partial-close dynamics and partial TP hits can reduce effective RR. Current 46.3% WR needs improvement toward 50%+ for consistent profitability with this RR profile.
+
+### Ideas to Improve Win Rate
+- Tighten score threshold back to 4/5 on higher-volatility periods
+- Add 4H trend filter (only take trades in 4H trend direction)
+- Widen SL slightly (reduce premature SL hits)
+- Test London/NY session only (filter out low-liquidity Asia entries)
+
+---
+
+## Settings Quick Reference
+
+### Recommended 1H XAUUSD Settings
+```
+Min Score:      3/5
+TP Mode:        RR (SL-based)
+RR:             1.5 / 2.0 / 3.0 / 4.0
+SL Multiplier:  1.5× ATR
+Trail SL:       Step (TP→prior TP)
+Risk %:         1% per trade
+Min Lot:        0.01
+Sessions:       London + NY only
+RSI Block:      ON (reclaim hold = 3 bars)
+ATR Filter:     0.1% min
+```
+
+### Recommended 4H XAUUSD Settings
+```
+Min Score:      3/5
+TP Mode:        RR (SL-based)
+RR:             2.0 / 3.0 / 4.0 / 5.0
+SL Multiplier:  2.0× ATR
+Trail SL:       Step (TP→prior TP)
+RSI Big-TF:     ON (RSI filter only on ≥1H)
+```
+
+---
+
+## File Summary
+
+```
+/home/user/JienAdam/
+├── samurai_trading_system.pine   # Live indicator (Pine v6)
+├── samurai_strategy.pine         # Backtest strategy (Pine v6)
+├── PROJECT.md                    # This file
+└── CLAUDE.md                     # AI coding guidelines
+```
+
+---
+
+## Key RSI Logic (Manual Reference)
+
+> RSI < 30 = market is choosing DOWN direction = **SELL bias, block BUY**  
+> RSI > 70 = market is choosing UP direction = **BUY bias, block SELL**  
+> These are trend confirmations, NOT reversal signals.  
+> After RSI exits the extreme zone, wait N bars before allowing opposite-direction entry (reclaim & hold).
