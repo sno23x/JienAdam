@@ -701,7 +701,7 @@ if showPA and paBearOK
 // 18. HIGHER TF TREND GATE — per manual: "ตีจากแท่งเทียน TF สูงเท่านั้น"
 // ============================================================================
 gHTF       = "18. Higher TF Trend Gate"
-useH4Gate  = input.bool(true,  "H4 MA Ribbon trend gate (price vs all 4 MAs)", group=gHTF)
+useH4Gate  = input.bool(false, "H4 MA Ribbon trend gate (price vs all 4 MAs)", group=gHTF)
 htfTrendTF = input.string("240", "Higher TF for trend", options=["60","240","D","W"], group=gHTF)
 
 [htfMa1, htfMa2, htfMa3, htfMa4, htfCl] = request.security(syminfo.tickerid, htfTrendTF, [ma1, ma2, ma3, ma4, close], lookahead=barmerge.lookahead_off)
@@ -712,7 +712,7 @@ htfBear = htfCl < htfMa1 and htfCl < htfMa2 and htfCl < htfMa3 and htfCl < htfMa
 // 19. SIDEWAY FILTER — EMA RIBBON OVERLAP (per manual: "ทับกัน = ไม่เทรด")
 // ============================================================================
 gSide         = "19. Sideway Filter (EMA Overlap)"
-useEMAOverlap = input.bool(true,  "Block when EMA Ribbon (1/2/3) overlaps", group=gSide)
+useEMAOverlap = input.bool(false, "Block when EMA Ribbon (1/2/3) overlaps", group=gSide)
 overlapPct    = input.float(0.3,  "Max EMA spread % (sideway threshold)", step=0.05, group=gSide)
 maMaxSpread   = math.max(ma1, ma2, ma3) - math.min(ma1, ma2, ma3)
 maAvg3        = (ma1 + ma2 + ma3) / 3
@@ -723,7 +723,7 @@ isMASideway   = useEMAOverlap and maSpreadPct < overlapPct
 // 20. HH/LL SWING TRACKING ON HTF — per manual: "ห้ามหลุดสวิงล่าสุด"
 // ============================================================================
 gSwing       = "20. HH/LL Swing (HTF)"
-useHTFSwing  = input.bool(true, "Block trades that break HTF swing", group=gSwing)
+useHTFSwing  = input.bool(false, "Block trades that break HTF swing", group=gSwing)
 swingPivotL  = input.int(5,     "HTF Pivot left",  minval=1, group=gSwing)
 swingPivotR  = input.int(3,     "HTF Pivot right", minval=1, group=gSwing)
 
