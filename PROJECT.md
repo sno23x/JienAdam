@@ -157,25 +157,40 @@ At 46.3% WR the system is theoretically +EV at TP1 RR, but partial-close dynamic
 
 ## Settings Quick Reference
 
-### Recommended 1H XAUUSD Settings (v2 — manual-aligned)
+### Recommended Settings (v3 — capital + LTF preset)
 ```
-Min Score:      4/5  (was 3/5)
-TP Mode:        RR (SL-based)
-RR:             1.5 / 2.0 / 3.0 / 4.0
-SL Multiplier:  1.5× ATR
-Trail SL:       Step (TP→prior TP)
-Risk %:         1% per trade
-Min Lot:        0.01
-Sessions:       London + NY only (Asia OFF)
-RSI Block:      ON (reclaim hold = 3 bars)
-ATR Filter:     0.1% min
-H4 Trend Gate:  ON  (4H MA Ribbon)
-EMA Overlap:    ON  (block when spread <0.3%)
-HTF Swing:      ON  (don't break H4 swing)
-EMA Touch:      OFF (optional, can over-filter)
-Corner Lines:   ON  (H4 visual S/R)
-Corner Gate:    OFF (optional)
+Initial Capital: $1000  (was $100 — too small for 0.01 lot)
+Min Score:       4/5
+TP Mode:         RR (SL-based)
+RR:              1.5 / 2.0 / 3.0 / 4.0
+Trail SL:        Step (TP→prior TP)
+Risk %:          1% per trade
+Min Lot:         0.01
+Sessions:        London + NY only (Asia OFF)
+RSI Block:       ON (reclaim hold = 3 bars)
+ATR Filter:      0.1% min
+H4 Trend Gate:   ON  (4H MA Ribbon)
+EMA Overlap:     ON  (block when spread <0.3%)
+HTF Swing:       ON  (auto-bypassed on 15M/30M via LTF preset)
+EMA Touch:       OFF (auto-forced ON on LTF via LTF preset)
+Corner Lines:    ON  (H4 visual S/R)
+Corner Gate:     OFF (optional)
+LTF Preset:      ON  (auto-tune 15M/30M/1H — Plan B recovery)
+  • Bypass HTF swing on 15M/30M
+  • Force EMA touch on LTF
+  • SL padding 50pt (was 100pt) on LTF
 ```
+
+### Backtest Results (Nov 2025 – Apr 2026, ~6 months)
+
+| TF | Trades | WR | PF | MaxDD | Net% |
+|----|--------|----|----|-------|------|
+| 15M | 12 | 16.7% | 0.09 | 3.7% | -306% |
+| 30M | 24 | 29.2% | 0.59 | 6.5% | -85% |
+| 1H | 23 | 21.7% | 0.23 | 5.5% | -251% |
+| **4H** | **14** | **50%** | **1.11** | **4.4%** | **+18.2%** ✅ |
+
+**Key insight:** 4H is the only profitable TF — system aligns with manual ("ตี TF สูงเท่านั้น"). LTF losses are amplified by oversized lot (0.01 minLot too big for $100 capital). v3 increases capital to $1000 + LTF preset to recover sub-4H performance.
 
 ### Recommended 4H XAUUSD Settings
 ```

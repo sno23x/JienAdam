@@ -1,6 +1,6 @@
 //@version=6
 strategy("Samurai Trading Strategy", shorttitle="Samurai BT", overlay=true,
-     initial_capital=100,
+     initial_capital=1000,
      default_qty_type=strategy.fixed,
      default_qty_value=0.01,
      pyramiding=0,
@@ -596,6 +596,14 @@ p4hTP2       = input.float(1.5,  "  4H TP2 ratio (RR)",  step=0.1, group=gFilt)
 is4H         = timeframe.period == "240"
 on4H         = use4HPreset and is4H
 
+// --- LTF preset (auto-tune for 15M/30M/1H) — Plan B recovery ---
+useLTFPreset    = input.bool(true,  "LTF Preset (auto-tune for 15M/30M/1H)",  group=gFilt)
+ltfDisableSwing = input.bool(true,  "  Bypass HTF Swing on 15M/30M",          group=gFilt)
+ltfForceTouch   = input.bool(true,  "  Force EMA Touch on LTF",               group=gFilt)
+ltfSLPad        = input.int(50,     "  LTF SL padding (points)",  minval=0,   group=gFilt)
+isLTF           = useLTFPreset and tfMinutes < 240   // 15M, 30M, 1H
+isMinor         = useLTFPreset and tfMinutes < 60    // 15M, 30M only
+
 // --- Session filter (เน้น Signal ทุกช่วงตลาดเปิด) ---
 useSess   = input.bool(true,  "Only trade during active sessions",         group=gFilt)
 useAsia   = input.bool(false, "  Trade Asia",                              group=gFilt)
@@ -791,14 +799,17 @@ if useCornerLines and htfNewBar and not na(prevHTFClose) and htfBodyPct >= corne
 buyScore  = (zoneBull ? 1 : 0) + (maBull ? 1 : 0) + (rsiBull ? 1 : 0) + (atFib ? 1 : 0) + (momBull ? 1 : 0)
 sellScore = (zoneBear ? 1 : 0) + (maBear ? 1 : 0) + (rsiBear ? 1 : 0) + (atFib ? 1 : 0) + (momBear ? 1 : 0)
 
-// New filter gates per manual
-h4GateB    = not useH4Gate    or htfBull
-h4GateS    = not useH4Gate    or htfBear
+// New filter gates per manual (LTF preset auto-adjusts on 15M/30M/1H)
+useHTFSwingEff = useHTFSwing and not (isMinor and ltfDisableSwing)
+useEMATouchEff = useEMATouch or  (isLTF   and ltfForceTouch)
+
+h4GateB    = not useH4Gate       or htfBull
+h4GateS    = not useH4Gate       or htfBear
 notMASide  = not isMASideway
-swingGateB = not useHTFSwing  or htfSwingBull
-swingGateS = not useHTFSwing  or htfSwingBear
-touchGate  = not useEMATouch  or firstTouchAfter
-cornerGate = not useCornerGate or nearCorner
+swingGateB = not useHTFSwingEff  or htfSwingBull
+swingGateS = not useHTFSwingEff  or htfSwingBear
+touchGate  = not useEMATouchEff  or firstTouchAfter
+cornerGate = not useCornerGate   or nearCorner
 
 buySignal  = buyScore  >= minScore and notSideways and volOK and sessOK and (not useStruct or structBull) and (not usePA or paBullOK) and not buyBlockedRSI  and h4GateB and notMASide and swingGateB and touchGate and cornerGate
 sellSignal = sellScore >= minScore and notSideways and volOK and sessOK and (not useStruct or structBear) and (not usePA or paBearOK) and not sellBlockedRSI and h4GateS and notMASide and swingGateS and touchGate and cornerGate
@@ -897,7 +908,7 @@ if showTrade and (newFinalBuy or newFinalSell) and not na(lastPH) and not na(las
     entry = close
     rng   = math.abs(lastPH - lastPL)
     slFix = fixedSL * syminfo.mintick
-    pad   = paSLPad * syminfo.mintick
+    pad   = (isLTF ? ltfSLPad : paSLPad) * syminfo.mintick
     paLo  = math.min(low, low[1], low[2]) - pad
     paHi  = math.max(high, high[1], high[2]) + pad
     sl    = paSLMode ? (newFinalBuy ? paLo : paHi) : useFixedSL ? (newFinalBuy ? entry - slFix : entry + slFix) : (newFinalBuy ? lastPL : lastPH)
@@ -972,7 +983,7 @@ remainPct(originalPct) =>
 if newFinalBuy and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
     entryPx := close
     slFixB  = fixedSL * syminfo.mintick
-    padB    = paSLPad * syminfo.mintick
+    padB    = (isLTF ? ltfSLPad : paSLPad) * syminfo.mintick
     paLoB   = math.min(low, low[1], low[2]) - padB
     curSL   := paSLMode ? paLoB : useFixedSL ? close - slFixB : lastPL
     slDist  = math.abs(entryPx - curSL)
@@ -994,7 +1005,7 @@ if newFinalBuy and strategy.position_size == 0 and not na(lastPH) and not na(las
 if newFinalSell and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
     entryPx := close
     slFixS  = fixedSL * syminfo.mintick
-    padS    = paSLPad * syminfo.mintick
+    padS    = (isLTF ? ltfSLPad : paSLPad) * syminfo.mintick
     paHiS   = math.max(high, high[1], high[2]) + padS
     curSL   := paSLMode ? paHiS : useFixedSL ? close + slFixS : lastPH
     slDist  = math.abs(entryPx - curSL)
