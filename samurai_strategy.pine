@@ -1053,6 +1053,9 @@ remainPct(originalPct) =>
     remaining = 100 - closedSoFar
     remaining > 0 ? originalPct / remaining * 100 : 100
 
+// Minimum SL = max(raw SL, atrVal × minSLatr) — prevents instant SL on tight PA wicks
+minSLatr = input.float(1.5, "Min SL distance (× ATR)", step=0.1, minval=0, group=gStrat)
+
 // === Entry ===
 if newFinalBuy and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
     entryPx := close
@@ -1060,6 +1063,9 @@ if newFinalBuy and strategy.position_size == 0 and not na(lastPH) and not na(las
     padB    = (isLTF ? ltfSLPad : paSLPad) * syminfo.mintick
     paLoB   = math.min(low, low[1], low[2]) - padB
     curSL   := paSLMode ? paLoB : useFixedSL ? close - slFixB : lastPL
+    minDist = atrVal * minSLatr
+    if entryPx - curSL < minDist
+        curSL := entryPx - minDist
     slDist  = math.abs(entryPx - curSL)
     rngB    = math.abs(lastPH - lastPL)
     useRRB  = tpMode == "RR (SL-based)"
@@ -1082,6 +1088,9 @@ if newFinalSell and strategy.position_size == 0 and not na(lastPH) and not na(la
     padS    = (isLTF ? ltfSLPad : paSLPad) * syminfo.mintick
     paHiS   = math.max(high, high[1], high[2]) + padS
     curSL   := paSLMode ? paHiS : useFixedSL ? close + slFixS : lastPH
+    minDistS = atrVal * minSLatr
+    if curSL - entryPx < minDistS
+        curSL := entryPx + minDistS
     slDist  = math.abs(entryPx - curSL)
     rngS    = math.abs(lastPH - lastPL)
     useRRS  = tpMode == "RR (SL-based)"
