@@ -7,7 +7,8 @@ strategy("Samurai Trading Strategy", shorttitle="Samurai BT", overlay=true,
      commission_type=strategy.commission.cash_per_contract,
      commission_value=0.07,
      slippage=2,
-     max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+     max_boxes_count=500, max_lines_count=500, max_labels_count=500,
+     max_bars_back=750)
 
 // ============================================================================
 // GROUPS
@@ -1056,8 +1057,13 @@ remainPct(originalPct) =>
 // Minimum SL = max(raw SL, atrVal × minSLatr) — prevents instant SL on tight PA wicks
 minSLatr = input.float(1.5, "Min SL distance (× ATR)", step=0.1, minval=0, group=gStrat)
 
+// Entry signal source: bypass MTF chain when "Final" trigger blocks all trades
+useFinalSig = input.bool(false, "Use Final signal (MTF) for entry — uncheck to use base signal", group=gStrat)
+entryBuy  = useFinalSig ? newFinalBuy  : newBuy
+entrySell = useFinalSig ? newFinalSell : newSell
+
 // === Entry ===
-if newFinalBuy and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
+if entryBuy and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
     entryPx := close
     slFixB  = fixedSL * syminfo.mintick
     padB    = (isLTF ? ltfSLPad : paSLPad) * syminfo.mintick
@@ -1082,7 +1088,7 @@ if newFinalBuy and strategy.position_size == 0 and not na(lastPH) and not na(las
     realRisk := curLot * slDist * contractSize / strategy.equity * 100
     strategy.entry("L", strategy.long, qty=curLot)
 
-if newFinalSell and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
+if entrySell and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
     entryPx := close
     slFixS  = fixedSL * syminfo.mintick
     padS    = (isLTF ? ltfSLPad : paSLPad) * syminfo.mintick
