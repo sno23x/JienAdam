@@ -1062,12 +1062,6 @@ useFinalSig = input.bool(false, "Use Final signal (MTF) for entry — uncheck to
 entryBuy  = useFinalSig ? newFinalBuy  : newBuy
 entrySell = useFinalSig ? newFinalSell : newSell
 
-// === SANITY TEST: forced entry every 200 bars to verify strategy.entry works ===
-testEntry = input.bool(true, "TEST: forced entry every 200 bars (REMOVE AFTER DEBUG)", group=gStrat)
-if testEntry and bar_index % 200 == 0 and strategy.position_size == 0
-    strategy.entry("TEST", strategy.long, qty=1)
-    strategy.exit("TEST_EXIT", "TEST", profit=500, loss=500)
-
 // === Entry ===
 if entryBuy and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
     entryPx := close
