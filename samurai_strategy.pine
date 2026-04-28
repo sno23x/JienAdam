@@ -1017,20 +1017,26 @@ if showTrade and (newFinalBuy or newFinalSell) and not na(lastPH) and not na(las
 gStrat       = "18. Strategy Execution"
 useRiskSize  = input.bool(true,  "Risk-based lot sizing",          group=gStrat)
 riskPct      = input.float(1.0,  "Risk % per trade",  step=0.1, minval=0.1, maxval=10, group=gStrat)
+maxRiskPct   = input.float(2.0,  "Max risk % per trade (skip if rounded lot exceeds)", step=0.1, minval=0.1, maxval=20, group=gStrat)
 minLot       = input.float(0.01, "Minimum lot",       step=0.01, group=gStrat)
+lotStep      = input.float(0.01, "Lot step (broker increment, e.g. 1 for whole-contract symbols)", step=0.01, group=gStrat)
 contractSize = input.float(100,  "Contract size (oz, gold=100)",  group=gStrat)
 tp1Pct       = input.float(25,   "TP1 close %",       step=5, minval=1, maxval=100, group=gStrat)
 tp2Pct       = input.float(25,   "TP2 close % (of original)", step=5, minval=1, maxval=100, group=gStrat)
 tp3Pct       = input.float(25,   "TP3 close % (of original)", step=5, minval=1, maxval=100, group=gStrat)
 trailMode    = input.string("Step (TP→prior TP)", "Trail SL Mode", options=["Step (TP→prior TP)","BE only","Off"], group=gStrat)
 
+// Returns lot >= minLot rounded UP to lotStep, or 0 if actual risk exceeds maxRiskPct.
+// Returning 0 signals "skip this trade" — entry block must check curLot > 0.
 f_calc_lot(slDistance) =>
-    if useRiskSize and slDistance > 0
-        riskAmt = strategy.equity * riskPct / 100
-        rawLot  = riskAmt / (slDistance * contractSize)
-        math.max(rawLot, minLot)
-    else
+    if not useRiskSize or slDistance <= 0
         minLot
+    else
+        riskAmt    = strategy.equity * riskPct / 100
+        rawLot     = riskAmt / (slDistance * contractSize)
+        steppedLot = math.max(math.ceil(rawLot / lotStep) * lotStep, minLot)
+        actualRisk = steppedLot * slDistance * contractSize / strategy.equity * 100
+        actualRisk <= maxRiskPct ? steppedLot : 0.0
 
 // Track trade state
 var float entryPx  = na
@@ -1086,7 +1092,8 @@ if entryBuy and strategy.position_size == 0 and not na(lastPH) and not na(lastPL
     tp4Done := false
     curLot   := f_calc_lot(slDist)
     realRisk := curLot * slDist * contractSize / strategy.equity * 100
-    strategy.entry("L", strategy.long, qty=curLot)
+    if curLot > 0
+        strategy.entry("L", strategy.long, qty=curLot)
 
 if entrySell and strategy.position_size == 0 and not na(lastPH) and not na(lastPL)
     entryPx := close
@@ -1111,7 +1118,8 @@ if entrySell and strategy.position_size == 0 and not na(lastPH) and not na(lastP
     tp4Done := false
     curLot   := f_calc_lot(slDist)
     realRisk := curLot * slDist * contractSize / strategy.equity * 100
-    strategy.entry("S", strategy.short, qty=curLot)
+    if curLot > 0
+        strategy.entry("S", strategy.short, qty=curLot)
 
 // === Manage open trade: Multi-TP partial + Trail SL ===
 if strategy.position_size != 0 and not na(entryPx)

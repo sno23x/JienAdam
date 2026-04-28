@@ -192,6 +192,36 @@ LTF Preset:      ON  (auto-tune 15M/30M/1H — Plan B recovery)
 
 **Key insight:** 4H is the only profitable TF — system aligns with manual ("ตี TF สูงเท่านั้น"). LTF losses are amplified by oversized lot (0.01 minLot too big for $100 capital). v3 increases capital to $1000 + LTF preset to recover sub-4H performance.
 
+---
+
+## v4 Clean Backtest (Apr 2026, CAPITALCOM:GOLD, minLot=1)
+
+**Important context:** earlier results were polluted by debug "TEST" forced entries (every 200 bars).
+v4 removed the test code and re-tested cleanly on **CAPITALCOM:GOLD** (FOREX.com Gold Spot rejected
+all `strategy.entry` calls — broker emulator bug). minLot raised to 1 because 0.01 was being
+silently rounded to 0.
+
+| TF | Trades | WR | PF | Net% | Verdict |
+|---|---|---|---|---|---|
+| 15M | 31 | 74.19% | 1.91 | +16.74% | ✅ Profitable (small sample) |
+| 30M | 31 | 51.61% | 0.36 | -20.88% | ❌ Outlier — investigate big losses |
+| 1H | 23 | 73.91% | 3.60 | +39.51% | ✅ Excellent (small sample) |
+| **4H** | **393** | **67.18%** | **1.26** | **+113.8%** | ✅✅ **Statistically robust** |
+
+**Key insights:**
+- Real signal quality is **strong**: 67-74% WR on three of four TFs.
+- 4H is the workhorse — 393 trades is a large enough sample to trust.
+- 30M is anomalous (PF 0.36 with 51% WR = 1-2 huge losses dragged it down).
+- minLot=1 is **diagnostic only** — each trade = 100 oz gold ≈ $400k notional ≈ 150% real risk
+  per trade on $1000 capital. Not safe for live trading without redesign.
+
+### ⚠️ Safety Gap
+
+minLot=1 with $1000 capital = blow account in 1 bad trade. Either:
+- Increase capital to **$10,000+** so 1% risk × $10,000 = $100 fits a $15 SL distance, OR
+- Use a CFD symbol with smaller contracts (1 oz instead of 100 oz), OR
+- Redesign lot sizing to use whole contracts AND auto-shrink risk%.
+
 ### Recommended 4H XAUUSD Settings
 ```
 Min Score:      3/5
