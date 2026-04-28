@@ -852,7 +852,7 @@ if showScore and newSell
 // 15. ENTRY / TP / SL (multi-TF confluence + Fib-based levels)
 // ============================================================================
 checkMTF   = input.bool(true, "Require Multi-TF Confluence", group=gTrade)
-mtfMin     = input.int(3, "Min TFs to align (of 5)", minval=1, maxval=5, group=gTrade)
+mtfMin     = input.int(2, "Min TFs to align (of 5)", minval=1, maxval=5, group=gTrade)
 showTrade  = input.bool(true, "Show Entry/TP/SL", group=gTrade)
 tp1Ratio   = input.float(1.0,   "TP1 Fib Extension", step=0.1, group=gTrade)
 tp2Ratio   = input.float(1.618, "TP2 Fib Extension", step=0.1, group=gTrade)
